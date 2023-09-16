@@ -8,7 +8,7 @@ import (
 )
 
 // Config interface
-type DBConnection struct {
+type MySQLConnData struct {
 	Host     string
 	Port     string
 	Database string
@@ -18,7 +18,7 @@ type DBConnection struct {
 
 // Global interface
 type MySQL interface {
-	StablishConnection(conn DBConnection, migrate ...interface{}) (db *gorm.DB, err error)
+	StablishConnection(conn MySQLConnData, migrate ...interface{}) (db *gorm.DB, err error)
 }
 
 // Local struct to be implmented
@@ -29,8 +29,14 @@ func NewMySQL() MySQL {
 	return &mysql{}
 }
 
-// Stablish connection function implementation
-func (sql *mysql) StablishConnection(conn DBConnection, migrate ...interface{}) (db *gorm.DB, err error) {
+// Satablish connection with MySQL server
+//
+// @param conn MySQLConnData: struct with necessary data to stablish connection with database.
+//
+// @param migrate ...interface{}: all interfaces to import to database.
+//
+// @return (db *gorm.DB, err error): database connection & error if exists
+func (sql *mysql) StablishConnection(conn MySQLConnData, migrate ...interface{}) (db *gorm.DB, err error) {
 	// create string connection
 	connString := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8&parseTime=True&loc=Local", conn.User, conn.Password, conn.Host, conn.Port, conn.Database)
 
