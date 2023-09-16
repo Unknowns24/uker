@@ -1,4 +1,4 @@
-package uker
+package utilities
 
 import (
 	"strconv"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v4"
-	uker "github.com/unknowns24/uker/shared/constants"
+	"github.com/unknowns24/uker/shared/constants"
 )
 
 // middleware contants
@@ -48,7 +48,7 @@ func (m *middlewares) IsAuthenticated(c *fiber.Ctx) error {
 	})
 
 	if err != nil || !token.Valid {
-		return endOutPut(c, fiber.StatusUnauthorized, uker.ERROR_MIDDLEWARE_INVALID_JWT, nil)
+		return endOutPut(c, fiber.StatusUnauthorized, constants.ERROR_MIDDLEWARE_INVALID_JWT, nil)
 	}
 
 	claims := token.Claims.(jwt.MapClaims)
@@ -59,11 +59,11 @@ func (m *middlewares) IsAuthenticated(c *fiber.Ctx) error {
 	id, err := strconv.ParseUint(claims[jwt_claim_key_issuer].(string), 10, 32)
 
 	if err != nil {
-		return endOutPut(c, fiber.StatusUnauthorized, uker.ERROR_MIDDLEWARE_INVALID_JWT, nil)
+		return endOutPut(c, fiber.StatusUnauthorized, constants.ERROR_MIDDLEWARE_INVALID_JWT, nil)
 	}
 
 	if id == 0 || (ip != c.Get("client-ip", c.IP())) {
-		return endOutPut(c, fiber.StatusUnauthorized, uker.ERROR_MIDDLEWARE_INVALID_JWT_USER, nil)
+		return endOutPut(c, fiber.StatusUnauthorized, constants.ERROR_MIDDLEWARE_INVALID_JWT_USER, nil)
 	}
 
 	c.Context().SetUserValue("userId", uint(id))
