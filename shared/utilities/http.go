@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/unknowns24/uker/shared/constants"
+	uker "github.com/unknowns24/uker/shared/constants"
 	"gorm.io/gorm"
 )
 
@@ -58,7 +58,19 @@ func NewHttp(appResponseSuffix string) Http {
 	return &http{}
 }
 
-// Paginate function implementation
+// Server data pagination
+//
+// @param c *fiber.Ctx: current fiber context.
+//
+// @param db *gorm.DB: Database pointer to perform the pagination.
+//
+// @param tableName string: Name of the table to paginate.
+//
+// @param condition string: Where condition to add to the pagination if necessary.
+//
+// @param result interface{}: Interface of wantend result.
+//
+// @return (fiber.Map, error): map with all paginated data & error if exists
 func (h *http) Paginate(c *fiber.Ctx, db *gorm.DB, tableName string, condition string, result interface{}) (fiber.Map, error) {
 	// Build a base query without conditions
 	query := db.Model(result).Table(tableName)
@@ -87,7 +99,7 @@ func (h *http) Paginate(c *fiber.Ctx, db *gorm.DB, tableName string, condition s
 	perPage, err2 := strconv.Atoi(c.Query(pagination_query_per_page, "10"))
 
 	if err1 != nil || err2 != nil {
-		return nil, endOutPut(c, fiber.StatusBadRequest, constants.ERROR_HTTP_BAD_REQUEST, nil)
+		return nil, endOutPut(c, fiber.StatusBadRequest, uker.ERROR_HTTP_BAD_REQUEST, nil)
 	}
 
 	// Perform the query and count the total records
@@ -113,23 +125,39 @@ func (h *http) Paginate(c *fiber.Ctx, db *gorm.DB, tableName string, condition s
 	}, nil
 }
 
-// EndOutPut function implementation
+// Create a fiber response as json string
+//
+// @param c *fiber.Ctx: Current fiber context.
+//
+// @param resCode int: Http response code.
+//
+// @param message string: Response message.
+//
+// @param extraValues map[string]string: map with all extras key, value that response need to return.
+//
+// @return error: return fiber response
 func (h *http) EndOutPut(c *fiber.Ctx, resCode int, message string, extraValues map[string]string) error {
 	return endOutPut(c, resCode, message, extraValues)
 }
 
-// BodyParser function implementation
+// Parse request body data
+//
+// @param c *fiber.Ctx: Current fiber context.
+//
+// @param requestInterface *interface{}: Interface pointer where parsed data will be stored.
+//
+// @return error: error if exists
 func (h *http) BodyParser(c *fiber.Ctx, requestInterface *interface{}) error {
 	var bodyData map[string]string
 
 	// Parse the content sent in the body
 	if err := c.BodyParser(&bodyData); err != nil {
-		return endOutPut(c, fiber.StatusBadRequest, constants.ERROR_HTTP_INVALID_JSON, nil)
+		return endOutPut(c, fiber.StatusBadRequest, uker.ERROR_HTTP_INVALID_JSON, nil)
 	}
 
 	// Check if the 'data' field exists within the JSON in the body
 	if bodyData[request_key_data] == "" {
-		return endOutPut(c, fiber.StatusBadRequest, constants.ERROR_HTTP_MISSING_DATA, nil)
+		return endOutPut(c, fiber.StatusBadRequest, uker.ERROR_HTTP_MISSING_DATA, nil)
 	}
 
 	// Decode the value of the 'data' field from base64
@@ -137,12 +165,12 @@ func (h *http) BodyParser(c *fiber.Ctx, requestInterface *interface{}) error {
 
 	// Check if there was an error while decoding the base64
 	if err != nil {
-		return endOutPut(c, fiber.StatusBadRequest, constants.ERROR_HTTP_INVALID_BASE64, nil)
+		return endOutPut(c, fiber.StatusBadRequest, uker.ERROR_HTTP_INVALID_BASE64, nil)
 	}
 
 	// Parse the JSON encoded in base64
 	if err := json.Unmarshal([]byte(string(decoded)), &requestInterface); err != nil {
-		return endOutPut(c, fiber.StatusBadRequest, constants.ERROR_HTTP_BAD_REQUEST, nil)
+		return endOutPut(c, fiber.StatusBadRequest, uker.ERROR_HTTP_BAD_REQUEST, nil)
 	}
 
 	return nil
