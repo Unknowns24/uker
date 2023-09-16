@@ -6,7 +6,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v4"
-	"github.com/unknowns24/uker/shared/constants"
+	uker "github.com/unknowns24/uker/shared/constants"
 )
 
 // middleware contants
@@ -35,7 +35,11 @@ func NewMiddlewares(jwtKey string) Middlewares {
 	return &middlewares{}
 }
 
-// IsAuthenticated function implementation
+// Middleware to validate if user is authenticated with a valid JWT
+//
+// @param c *fiber.Ctx: Current fiber context.
+//
+// @return error: error on authentication
 func (m *middlewares) IsAuthenticated(c *fiber.Ctx) error {
 	cookie := c.Cookies(jwt_cookie_name)
 
@@ -44,7 +48,7 @@ func (m *middlewares) IsAuthenticated(c *fiber.Ctx) error {
 	})
 
 	if err != nil || !token.Valid {
-		return endOutPut(c, fiber.StatusUnauthorized, constants.ERROR_MIDDLEWARE_INVALID_JWT, nil)
+		return endOutPut(c, fiber.StatusUnauthorized, uker.ERROR_MIDDLEWARE_INVALID_JWT, nil)
 	}
 
 	claims := token.Claims.(jwt.MapClaims)
@@ -55,17 +59,24 @@ func (m *middlewares) IsAuthenticated(c *fiber.Ctx) error {
 	id, err := strconv.ParseUint(claims[jwt_claim_key_issuer].(string), 10, 32)
 
 	if err != nil {
-		return endOutPut(c, fiber.StatusUnauthorized, constants.ERROR_MIDDLEWARE_INVALID_JWT, nil)
+		return endOutPut(c, fiber.StatusUnauthorized, uker.ERROR_MIDDLEWARE_INVALID_JWT, nil)
 	}
 
 	if id == 0 || (ip != c.Get("client-ip", c.IP())) {
-		return endOutPut(c, fiber.StatusUnauthorized, constants.ERROR_MIDDLEWARE_INVALID_JWT_USER, nil)
+		return endOutPut(c, fiber.StatusUnauthorized, uker.ERROR_MIDDLEWARE_INVALID_JWT_USER, nil)
 	}
 
 	c.Context().SetUserValue("userId", uint(id))
 	return c.Next()
 }
 
+// Generate a valid JWT
+//
+// @param id uint: User id.
+//
+// @param keeplogin bool: Param to extend jwt valid time.
+//
+// @return (string, error): generated jwt & error if exists
 func (m *middlewares) GenerateJWT(id uint, keeplogin bool) (string, error) {
 	payload := jwt.RegisteredClaims{}
 	payload.Subject = strconv.Itoa(int(id))
