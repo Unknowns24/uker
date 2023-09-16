@@ -40,22 +40,22 @@ type response struct {
 }
 
 // Global interface
-type Http interface {
+type http interface {
 	Paginate(c *fiber.Ctx, db *gorm.DB, tableName string, condition string, result interface{}) (fiber.Map, error)
 	EndOutPut(c *fiber.Ctx, resCode int, message string, extraValues map[string]string) error
 	BodyParser(c *fiber.Ctx, requestInterface *interface{}) error
 }
 
 // Local struct to be implmented
-type http struct{}
+type http_implementation struct{}
 
 // External contructor
-func NewHttp(appResponseSuffix string) Http {
+func NewHttp(appResponseSuffix string) http {
 	// Make app suffix local to access it from EndOutPut
 	appSuffix = appResponseSuffix
 
 	// return implemented local struct
-	return &http{}
+	return &http_implementation{}
 }
 
 // Server data pagination
@@ -71,7 +71,7 @@ func NewHttp(appResponseSuffix string) Http {
 // @param result interface{}: Interface of wantend result.
 //
 // @return (fiber.Map, error): map with all paginated data & error if exists
-func (h *http) Paginate(c *fiber.Ctx, db *gorm.DB, tableName string, condition string, result interface{}) (fiber.Map, error) {
+func (h *http_implementation) Paginate(c *fiber.Ctx, db *gorm.DB, tableName string, condition string, result interface{}) (fiber.Map, error) {
 	// Build a base query without conditions
 	query := db.Model(result).Table(tableName)
 
@@ -136,7 +136,7 @@ func (h *http) Paginate(c *fiber.Ctx, db *gorm.DB, tableName string, condition s
 // @param extraValues map[string]string: map with all extras key, value that response need to return.
 //
 // @return error: return fiber response
-func (h *http) EndOutPut(c *fiber.Ctx, resCode int, message string, extraValues map[string]string) error {
+func (h *http_implementation) EndOutPut(c *fiber.Ctx, resCode int, message string, extraValues map[string]string) error {
 	return endOutPut(c, resCode, message, extraValues)
 }
 
@@ -147,7 +147,7 @@ func (h *http) EndOutPut(c *fiber.Ctx, resCode int, message string, extraValues 
 // @param requestInterface *interface{}: Interface pointer where parsed data will be stored.
 //
 // @return error: error if exists
-func (h *http) BodyParser(c *fiber.Ctx, requestInterface *interface{}) error {
+func (h *http_implementation) BodyParser(c *fiber.Ctx, requestInterface *interface{}) error {
 	var bodyData map[string]string
 
 	// Parse the content sent in the body

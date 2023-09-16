@@ -21,18 +21,18 @@ const (
 var jwt_key string
 
 // Global interface
-type Middlewares interface {
+type middlewares interface {
 	GenerateJWT(id uint, keeplogin bool) (string, error)
 	IsAuthenticated(c *fiber.Ctx) error
 }
 
 // Local struct to be implmented
-type middlewares struct{}
+type middlewares_implementation struct{}
 
 // External contructor
-func NewMiddlewares(jwtKey string) Middlewares {
+func NewMiddlewares(jwtKey string) middlewares {
 	jwt_key = jwtKey
-	return &middlewares{}
+	return &middlewares_implementation{}
 }
 
 // Middleware to validate if user is authenticated with a valid JWT
@@ -40,7 +40,7 @@ func NewMiddlewares(jwtKey string) Middlewares {
 // @param c *fiber.Ctx: Current fiber context.
 //
 // @return error: error on authentication
-func (m *middlewares) IsAuthenticated(c *fiber.Ctx) error {
+func (m *middlewares_implementation) IsAuthenticated(c *fiber.Ctx) error {
 	cookie := c.Cookies(jwt_cookie_name)
 
 	token, err := jwt.Parse(cookie, func(token *jwt.Token) (interface{}, error) {
@@ -77,7 +77,7 @@ func (m *middlewares) IsAuthenticated(c *fiber.Ctx) error {
 // @param keeplogin bool: Param to extend jwt valid time.
 //
 // @return (string, error): generated jwt & error if exists
-func (m *middlewares) GenerateJWT(id uint, keeplogin bool) (string, error) {
+func (m *middlewares_implementation) GenerateJWT(id uint, keeplogin bool) (string, error) {
 	payload := jwt.RegisteredClaims{}
 	payload.Subject = strconv.Itoa(int(id))
 	payload.ExpiresAt = jwt.NewNumericDate(time.Now().Add(time.Hour * 24)) // JWT Have 1 day of duration

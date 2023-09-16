@@ -28,7 +28,7 @@ type GrpcServerData struct {
 
 // Global interface
 type grpc interface {
-	CreateClient(GrpcConnData) (*grpcp.ClientConn, error)
+	CreateClient(GrpcConnData) *grpcp.ClientConn
 	CreateServer(*sync.WaitGroup, GrpcServerData) *grpcp.Server
 }
 
@@ -82,7 +82,7 @@ func (g *grpc_implementation) CreateServer(wg *sync.WaitGroup, sData GrpcServerD
 // @param dialData GrpcConnData: WaitGroup to add the server routine.
 //
 // @return (*grpcp.Server, error): the stablished connection with the server & error if exists
-func (g *grpc_implementation) CreateClient(dialData GrpcConnData) (*grpcp.ClientConn, error) {
+func (g *grpc_implementation) CreateClient(dialData GrpcConnData) *grpcp.ClientConn {
 	// Create a context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -90,14 +90,14 @@ func (g *grpc_implementation) CreateClient(dialData GrpcConnData) (*grpcp.Client
 	// Create TLS credentials
 	creds, err := credentials.NewServerTLSFromFile(dialData.CertPath, dialData.KeyPath)
 	if err != nil {
-		return nil, fmt.Errorf("cannot load TLS credentials: %v", err)
+		panic(fmt.Errorf("cannot load TLS credentials: %v", err))
 	}
 
 	// Opening the connection to gRPC server
 	conn, err := grpcp.DialContext(ctx, fmt.Sprintf("%s:%s", dialData.Host, dialData.Port), grpcp.WithTransportCredentials(creds), grpcp.WithBlock(), grpcp.WithReturnConnectionError())
 	if err != nil {
-		return nil, fmt.Errorf("cannot connect with gRPC server: %s ", err.Error())
+		panic(fmt.Errorf("cannot connect with gRPC server: %s ", err.Error()))
 	}
 
-	return conn, nil
+	return conn
 }
