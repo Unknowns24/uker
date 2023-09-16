@@ -19,13 +19,13 @@ Uker (Utility Kernel) is a Go package that provides a set of utilities to simpli
 To use the Uker package in your Go project, you can simply import it:
 
 ```go
-import "github.com/your-username/uker"
+import "github.com/unknowns24/uker"
 ```
 
 Then, run `go get` to fetch the package:
 
 ```bash
-go get github.com/your-username/uker
+go get github.com/unknowns24/uker
 ```
 
 ## Usage
