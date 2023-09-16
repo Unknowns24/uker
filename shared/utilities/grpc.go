@@ -27,17 +27,17 @@ type GrpcServerData struct {
 }
 
 // Global interface
-type Grpc interface {
+type grpc interface {
 	CreateClient(GrpcConnData) (*grpcp.ClientConn, error)
 	CreateServer(*sync.WaitGroup, GrpcServerData) *grpcp.Server
 }
 
 // Local struct to be implmented
-type grpc struct{}
+type grpc_implementation struct{}
 
 // External contructor
-func NewGrpc() Grpc {
-	return &grpc{}
+func NewGrpc() grpc {
+	return &grpc_implementation{}
 }
 
 // Create gRPC server
@@ -47,7 +47,7 @@ func NewGrpc() Grpc {
 // @param sData GrpcServerData: Struct with necessary data to set up the gRPC server.
 //
 // @return *grpcp.Server: created & running gRPC.Server pointer
-func (g *grpc) CreateServer(wg *sync.WaitGroup, sData GrpcServerData) *grpcp.Server {
+func (g *grpc_implementation) CreateServer(wg *sync.WaitGroup, sData GrpcServerData) *grpcp.Server {
 	// Create TLS credentials
 	creds, err := credentials.NewServerTLSFromFile(sData.CertPath, sData.KeyPath)
 	if err != nil {
@@ -82,7 +82,7 @@ func (g *grpc) CreateServer(wg *sync.WaitGroup, sData GrpcServerData) *grpcp.Ser
 // @param dialData GrpcConnData: WaitGroup to add the server routine.
 //
 // @return (*grpcp.Server, error): the stablished connection with the server & error if exists
-func (g *grpc) CreateClient(dialData GrpcConnData) (*grpcp.ClientConn, error) {
+func (g *grpc_implementation) CreateClient(dialData GrpcConnData) (*grpcp.ClientConn, error) {
 	// Create a context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
