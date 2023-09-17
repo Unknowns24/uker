@@ -1,4 +1,4 @@
-package constants
+package uker
 
 // http error constants
 const (

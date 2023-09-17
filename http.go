@@ -1,4 +1,4 @@
-package utilities
+package uker
 
 import (
 	"encoding/base64"
@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/unknowns24/uker/shared/constants"
 	"gorm.io/gorm"
 )
 
@@ -99,7 +98,7 @@ func (h *http_implementation) Paginate(c *fiber.Ctx, db *gorm.DB, tableName stri
 	perPage, err2 := strconv.Atoi(c.Query(pagination_query_per_page, "10"))
 
 	if err1 != nil || err2 != nil {
-		return nil, endOutPut(c, fiber.StatusBadRequest, constants.ERROR_HTTP_BAD_REQUEST, nil)
+		return nil, endOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_BAD_REQUEST, nil)
 	}
 
 	// Perform the query and count the total records
@@ -152,12 +151,12 @@ func (h *http_implementation) BodyParser(c *fiber.Ctx, requestInterface *interfa
 
 	// Parse the content sent in the body
 	if err := c.BodyParser(&bodyData); err != nil {
-		return endOutPut(c, fiber.StatusBadRequest, constants.ERROR_HTTP_INVALID_JSON, nil)
+		return endOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_INVALID_JSON, nil)
 	}
 
 	// Check if the 'data' field exists within the JSON in the body
 	if bodyData[request_key_data] == "" {
-		return endOutPut(c, fiber.StatusBadRequest, constants.ERROR_HTTP_MISSING_DATA, nil)
+		return endOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_MISSING_DATA, nil)
 	}
 
 	// Decode the value of the 'data' field from base64
@@ -165,12 +164,12 @@ func (h *http_implementation) BodyParser(c *fiber.Ctx, requestInterface *interfa
 
 	// Check if there was an error while decoding the base64
 	if err != nil {
-		return endOutPut(c, fiber.StatusBadRequest, constants.ERROR_HTTP_INVALID_BASE64, nil)
+		return endOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_INVALID_BASE64, nil)
 	}
 
 	// Parse the JSON encoded in base64
 	if err := json.Unmarshal([]byte(string(decoded)), &requestInterface); err != nil {
-		return endOutPut(c, fiber.StatusBadRequest, constants.ERROR_HTTP_BAD_REQUEST, nil)
+		return endOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_BAD_REQUEST, nil)
 	}
 
 	return nil
