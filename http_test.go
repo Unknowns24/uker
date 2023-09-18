@@ -18,122 +18,124 @@ type testStruct struct {
 }
 
 func TestMultiPartFormParser(t *testing.T) {
+	// Create a test structure
 	test := testStruct{
 		Param1: "value1",
 		Param2: "value2",
 	}
 
+	// Marshal the test structure to JSON
 	testJson, err := json.Marshal(test)
 	if err != nil {
 		t.Errorf("Error: %v", err)
 	}
 
-	// Crear un objeto fasthttp.RequestCtx simulado
+	// Create a simulated fasthttp.RequestCtx object
 	ctx := &fasthttp.RequestCtx{}
 
-	// Crear un cuerpo de formulario multiparte simulado
+	// Create a simulated multipart form body
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 
-	// Encoding base64 multiform value data
+	// Encode the testJson string in base64
 	testBase64 := base64.StdEncoding.EncodeToString(testJson)
 
-	// Agregar un campo "data" con valores
+	// Add a "data" field with values
 	writer.WriteField("data", testBase64)
 
-	// Agregar un archivo simulado
+	// Add a simulated file
 	fileWriter, _ := writer.CreateFormFile("file1", "example.txt")
 	fileWriter.Write([]byte("simulated file content"))
 
-	// Finalizar el formulario multiparte
+	// Finalize the multipart form
 	writer.Close()
 
-	// Configurar el cuerpo del contexto con el formulario simulado
+	// Set the body of the context with the simulated form
 	ctx.Request.SetBody(body.Bytes())
 	ctx.Request.Header.SetContentType(writer.FormDataContentType())
 
-	// Crear app de fiber
+	// Create a Fiber app
 	app := fiber.New()
 
-	// Agregarle el contexto de la request a la app de fiber
+	// Acquire the request context into the Fiber app
 	c := app.AcquireCtx(ctx)
 
-	// Create a new map with string (value to search on the multipartform) as key and the interface (where decoded value will stored) as value
+	// Create a new map with string (value to search in the multipart form) as keys and interface (where the decoded value will be stored) as values
 	values := make(map[string]interface{})
 
-	// Create an empty test structure where final value will be stored
+	// Create an empty test structure where the final value will be stored
 	data := testStruct{}
 
-	// Add row to test to values map
+	// Add the "data" key to the values map
 	values["data"] = &data
 
-	// Llamar a la función MultiPartFormParser
+	// Call the MultiPartFormParser function
 	files, err := uker.NewHttp("").MultiPartFormParser(c, values, []string{"file1", "file2"})
 	if err != nil {
 		t.Errorf("Error: %v", err)
 	}
 
-	// Verificar que la estructura createAppRequest fue llenada correctamente
+	// Verify that the testStruct was filled correctly
 	if data.Param1 != "value1" {
-		t.Errorf("Expected Name to be 'value1', got '%s'", data.Param1)
+		t.Errorf("Expected Param1 to be 'value1', got '%s'", data.Param1)
 	}
 
-	// Verificar que los archivos se hayan procesado correctamente (simulados)
+	// Verify that the files were processed correctly (simulated)
 	if len(files["file1"]) != 0 || len(files["file2"]) != 0 {
 		t.Errorf("Expected files, got no files")
 	}
 }
 
 func TestBodyParser(t *testing.T) {
-	// Create test structure
+	// Create a test structure
 	test := testStruct{
 		Param1: "value1",
 		Param2: "value2",
 	}
 
-	// Marshal test structure to json
+	// Marshal the test structure to JSON
 	testJson, err := json.Marshal(test)
 	if err != nil {
 		t.Errorf("Error: %v", err)
 	}
 
-	// Encoding on base64 testJson string
+	// Encode the testJson string in base64
 	testBase64 := base64.StdEncoding.EncodeToString(testJson)
 
-	// Create test body with a data field which have the base64 encoded testJson
+	// Create a test body with a "data" field that has the base64 encoded testJson
 	testBody := map[string]string{
 		"data": testBase64,
 	}
 
-	// Marshal testBody map to json
+	// Marshal the testBody map to JSON
 	bodyJson, err := json.Marshal(testBody)
 	if err != nil {
 		t.Errorf("Error: %v", err)
 	}
 
-	// Crear un objeto fasthttp.RequestCtx simulado
+	// Create a simulated fasthttp.RequestCtx object
 	ctx := &fasthttp.RequestCtx{}
 
-	// Configurar el cuerpo del contexto con el JSON simulado
+	// Set the body of the context with the simulated JSON
 	ctx.Request.SetBody([]byte(bodyJson))
 	ctx.Request.Header.SetContentType(fiber.MIMEApplicationJSON)
 
-	// Crear app de fiber
+	// Create a Fiber app
 	app := fiber.New()
 
-	// Agregarle el contexto de la request a la app de fiber
+	// Acquire the request context into the Fiber app
 	c := app.AcquireCtx(ctx)
 
 	// Create an empty test structure to save files when decoded
 	data := testStruct{}
 
-	// Llamar a la función BodyParser
+	// Call the BodyParser function
 	err = uker.NewHttp("").BodyParser(c, &data)
 	if err != nil {
 		t.Errorf("Error: %v", err)
 	}
 
-	// Verificar que la estructura createAppRequest fue llenada correctamente
+	// Verify that the testStruct was filled correctly
 	if data.Param1 != "value1" {
 		t.Errorf("Expected Param1 to be 'value1', got '%s'", data.Param1)
 	}
