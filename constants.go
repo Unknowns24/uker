@@ -18,3 +18,13 @@ const (
 	ERROR_MIDDLEWARE_INVALID_JWT      = "ERRN500"
 	ERROR_MIDDLEWARE_INVALID_JWT_USER = "ERRN501"
 )
+
+// http header constants
+const (
+	HTTP_HEADER_NGINX_USERIP = "X-Real-IP"
+)
+
+// context constants
+const (
+	CONTEXT_VALUE_USERID = "user-id"
+)

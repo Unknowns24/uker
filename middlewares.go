@@ -61,11 +61,11 @@ func (m *middlewares_implementation) IsAuthenticated(c *fiber.Ctx) error {
 		return endOutPut(c, fiber.StatusUnauthorized, ERROR_MIDDLEWARE_INVALID_JWT, nil)
 	}
 
-	if id == 0 || (ip != c.Get("client-ip", c.IP())) {
+	if id == 0 || (ip != c.Get(HTTP_HEADER_NGINX_USERIP, c.IP())) {
 		return endOutPut(c, fiber.StatusUnauthorized, ERROR_MIDDLEWARE_INVALID_JWT_USER, nil)
 	}
 
-	c.Context().SetUserValue("userId", uint(id))
+	c.Context().SetUserValue(CONTEXT_VALUE_USERID, uint(id))
 	return c.Next()
 }
 

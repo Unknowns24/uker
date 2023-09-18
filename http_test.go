@@ -140,3 +140,56 @@ func TestBodyParser(t *testing.T) {
 		t.Errorf("Expected Param1 to be 'value1', got '%s'", data.Param1)
 	}
 }
+
+func TestEndOutPut(t *testing.T) {
+	const testMsg = "TEST"
+
+	// Create a Fiber app
+	app := fiber.New()
+
+	// Crear un contexto simulado de Fiber
+	c := app.AcquireCtx(&fasthttp.RequestCtx{})
+
+	// Llamar a la función endOutPut con los valores de prueba
+	err := uker.NewHttp("").EndOutPut(c, fiber.StatusOK, testMsg, map[string]string{"key1": "value1", "key2": "value2"})
+
+	// Verificar si hay un error
+	if err != nil {
+		t.Errorf("Error en la función endOutPut: %v", err)
+	}
+
+	// Verificar el código de respuesta
+	if c.Context().Response.StatusCode() != fiber.StatusOK {
+		t.Errorf("Código de respuesta incorrecto. Se esperaba %d, pero se obtuvo %d", fiber.StatusOK, c.Context().Response.StatusCode())
+	}
+
+	// Decodificar la respuesta JSON
+	var baseResonse map[string]interface{}
+	if err := json.Unmarshal(c.Context().Response.Body(), &baseResonse); err != nil {
+		t.Errorf("Error al decodificar la respuesta base en JSON: %v", err)
+	}
+
+	encodedData, err := json.Marshal(baseResonse["data"])
+	if err != nil {
+		t.Errorf("Error al codificat data en JSON: %v", err)
+	}
+
+	var dataResponse map[string]string
+	if err := json.Unmarshal([]byte(encodedData), &dataResponse); err != nil {
+		t.Errorf("Error al decodificar el contenido de data en JSON: %v", err)
+	}
+
+	// Verificar el contenido de la respuesta
+	if dataResponse["message"] != testMsg {
+		t.Errorf("Mensaje incorrecto en la respuesta. Se esperaba '%s', pero se obtuvo '%s'", testMsg, dataResponse["message"])
+	}
+
+	// Verificar otros valores adicionales si es necesario
+	if dataResponse["key1"] != "value1" {
+		t.Errorf("Valor incorrecto para 'key1' en la respuesta. Se esperaba '%s', pero se obtuvo '%s'", "value1", dataResponse["key1"])
+	}
+
+	if dataResponse["key2"] != "value2" {
+		t.Errorf("Valor incorrecto para 'key2' en la respuesta. Se esperaba '%s', pero se obtuvo '%s'", "value2", dataResponse["key2"])
+	}
+}
