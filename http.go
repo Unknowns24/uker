@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"mime/multipart"
 	"strconv"
 	"strings"
 
@@ -38,11 +39,18 @@ type response struct {
 	Data map[string]string `json:"data"`
 }
 
+// Struct with MultiformParser return
+type MutiformData struct {
+	Values map[string]string
+	Files  map[string][]*multipart.FileHeader
+}
+
 // Global interface
 type http interface {
 	Paginate(c *fiber.Ctx, db *gorm.DB, tableName string, condition string, result interface{}) (fiber.Map, error)
 	EndOutPut(c *fiber.Ctx, resCode int, message string, extraValues map[string]string) error
 	BodyParser(c *fiber.Ctx, requestInterface *interface{}) error
+	MultiPartFormParser(ctx *fiber.Ctx, values map[string]*interface{}, files []string) (map[string][]*multipart.FileHeader, error)
 }
 
 // Local struct to be implmented
@@ -173,6 +181,62 @@ func (h *http_implementation) BodyParser(c *fiber.Ctx, requestInterface *interfa
 	}
 
 	return nil
+}
+
+// Multi part form parser
+//
+// @param c *fiber.Ctx: current fiber context.
+//
+// @param values map[string]*interface{}: map with the value to be parsed and the interface pointer to decode it.
+//
+// @param files []string: string slice with all files that are required of the multipart.
+//
+// @return (map[string][]*multipart.FileHeader, error): map with all files & error if exists
+func (h *http_implementation) MultiPartFormParser(ctx *fiber.Ctx, values map[string]*interface{}, files []string) (map[string][]*multipart.FileHeader, error) {
+	// Get MultiparForm pointer
+	MultipartForm, err := ctx.MultipartForm()
+	if err != nil {
+		return nil, endOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_MULTIPARTFORM_INVALID_FORM, nil)
+	}
+
+	// Parse every requested value on the values map
+	for value, valueInterface := range values {
+		// Get requested FormValue value if exists inside of the multiform
+		valueData := ctx.FormValue(value, "")
+
+		// Check if field exists
+		if valueData == "" {
+			return nil, endOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_BAD_REQUEST, nil)
+		}
+
+		// Decoding base64 multiform value data
+		decoded, err := base64.StdEncoding.DecodeString(valueData)
+
+		// Check if error happens on base64 decoding
+		if err != nil {
+			return nil, endOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_INVALID_BASE64, nil)
+		}
+
+		// Parse decoded json string to the specified interface
+		if err := json.Unmarshal(decoded, &valueInterface); err != nil {
+			return nil, endOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_INVALID_JSON, nil)
+		}
+	}
+
+	// Map with all requested files that will be returned
+	ParsedFiles := map[string][]*multipart.FileHeader{}
+
+	// Parse every requested file on the Files string slice
+	for _, file := range files {
+		if MultipartFormFile := MultipartForm.File[file]; MultipartFormFile != nil {
+			ParsedFiles[file] = MultipartFormFile
+			continue
+		}
+
+		return nil, endOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_MULTIPARTFORM_MISSING_FILES, nil)
+	}
+
+	return ParsedFiles, nil
 }
 
 // Declaring this local function tu use on all utility files
