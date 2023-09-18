@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"mime/multipart"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -49,8 +50,8 @@ type MutiformData struct {
 type http interface {
 	Paginate(c *fiber.Ctx, db *gorm.DB, tableName string, condition string, result interface{}) (fiber.Map, error)
 	EndOutPut(c *fiber.Ctx, resCode int, message string, extraValues map[string]string) error
-	BodyParser(c *fiber.Ctx, requestInterface *interface{}) error
-	MultiPartFormParser(ctx *fiber.Ctx, values map[string]*interface{}, files []string) (map[string][]*multipart.FileHeader, error)
+	BodyParser(c *fiber.Ctx, requestInterface interface{}) error
+	MultiPartFormParser(ctx *fiber.Ctx, values map[string]interface{}, files []string) (map[string][]*multipart.FileHeader, error)
 }
 
 // Local struct to be implmented
@@ -154,7 +155,12 @@ func (h *http_implementation) EndOutPut(c *fiber.Ctx, resCode int, message strin
 // @param requestInterface *interface{}: Interface pointer where parsed data will be stored.
 //
 // @return error: error if exists
-func (h *http_implementation) BodyParser(c *fiber.Ctx, requestInterface *interface{}) error {
+func (h *http_implementation) BodyParser(c *fiber.Ctx, requestInterface interface{}) error {
+	// Validate if requestInterface is a pointer
+	if reflect.ValueOf(requestInterface).Kind() != reflect.Ptr {
+		return fmt.Errorf("expected %s as requestInterface, %s received", reflect.Ptr, reflect.ValueOf(requestInterface).Kind())
+	}
+
 	var bodyData map[string]string
 
 	// Parse the content sent in the body
@@ -192,7 +198,7 @@ func (h *http_implementation) BodyParser(c *fiber.Ctx, requestInterface *interfa
 // @param files []string: string slice with all files that are required of the multipart.
 //
 // @return (map[string][]*multipart.FileHeader, error): map with all files & error if exists
-func (h *http_implementation) MultiPartFormParser(ctx *fiber.Ctx, values map[string]*interface{}, files []string) (map[string][]*multipart.FileHeader, error) {
+func (h *http_implementation) MultiPartFormParser(ctx *fiber.Ctx, values map[string]interface{}, files []string) (map[string][]*multipart.FileHeader, error) {
 	// Get MultiparForm pointer
 	MultipartForm, err := ctx.MultipartForm()
 	if err != nil {
@@ -201,9 +207,12 @@ func (h *http_implementation) MultiPartFormParser(ctx *fiber.Ctx, values map[str
 
 	// Parse every requested value on the values map
 	for value, valueInterface := range values {
+		if reflect.ValueOf(valueInterface).Kind() != reflect.Ptr {
+			return nil, fmt.Errorf("expected %s as value interface, %s received", reflect.Ptr, reflect.ValueOf(valueInterface).Kind())
+		}
+
 		// Get requested FormValue value if exists inside of the multiform
 		valueData := ctx.FormValue(value, "")
-
 		// Check if field exists
 		if valueData == "" {
 			return nil, endOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_BAD_REQUEST, nil)
