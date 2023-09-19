@@ -17,7 +17,7 @@ type MySQLConnData struct {
 }
 
 // Global interface
-type mysql interface {
+type Mysql interface {
 	// Satablish connection with MySQL server
 	//
 	// @param conn MySQLConnData: struct with necessary data to stablish connection with database.
@@ -32,7 +32,7 @@ type mysql interface {
 type mysql_implementation struct{}
 
 // External contructor
-func NewMySQL() mysql {
+func NewMySQL() Mysql {
 	return &mysql_implementation{}
 }
 

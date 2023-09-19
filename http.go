@@ -47,7 +47,7 @@ type MutiformData struct {
 }
 
 // Global interface
-type http interface {
+type Http interface {
 	// Server data pagination
 	//
 	// @param c *fiber.Ctx: current fiber context.
@@ -101,7 +101,7 @@ type http interface {
 type http_implementation struct{}
 
 // External contructor
-func NewHttp(appResponseSuffix string) http {
+func NewHttp(appResponseSuffix string) Http {
 	// Make app suffix local to access it from EndOutPut
 	appSuffix = appResponseSuffix
 

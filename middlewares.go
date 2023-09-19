@@ -22,7 +22,7 @@ const (
 var jwt_key string
 
 // Global interface
-type middlewares interface {
+type Middlewares interface {
 	// Generate a valid JWT
 	//
 	// @param id uint: User id.
@@ -62,7 +62,7 @@ type middlewares interface {
 type middlewares_implementation struct{}
 
 // External contructor
-func NewMiddlewares(jwtKey string) middlewares {
+func NewMiddlewares(jwtKey string) Middlewares {
 	jwt_key = jwtKey
 	return &middlewares_implementation{}
 }

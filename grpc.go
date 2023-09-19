@@ -27,7 +27,7 @@ type GrpcServerData struct {
 }
 
 // Global interface
-type grpc interface {
+type Grpc interface {
 	// Create gRPC Client
 	//
 	// @param dialData GrpcConnData: WaitGroup to add the server routine.
@@ -49,7 +49,7 @@ type grpc interface {
 type grpc_implementation struct{}
 
 // External contructor
-func NewGrpc() grpc {
+func NewGrpc() Grpc {
 	return &grpc_implementation{}
 }
 
