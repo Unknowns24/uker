@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package grpc;
+
+option go_package = "apps/proto";
+
+message HavePermReq {
+    uint64 userId = 1;
+    string permission = 2;
+}
+
+message HavePermRes {
+    bool havePermission = 1;
+}
+
+service AuthService {
+    rpc HavePermission(HavePermReq) returns (HavePermRes);
+}
