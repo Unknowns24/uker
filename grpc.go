@@ -28,7 +28,20 @@ type GrpcServerData struct {
 
 // Global interface
 type grpc interface {
+	// Create gRPC Client
+	//
+	// @param dialData GrpcConnData: WaitGroup to add the server routine.
+	//
+	// @return (*grpcp.Server, error): the stablished connection with the server & error if exists
 	CreateClient(GrpcConnData) *grpcp.ClientConn
+
+	// Create gRPC server
+	//
+	// @param wg *sync.WaitGroup: WaitGroup to add the server routine.
+	//
+	// @param sData GrpcServerData: Struct with necessary data to set up the gRPC server.
+	//
+	// @return *grpcp.Server: created & running gRPC.Server pointer
 	CreateServer(*sync.WaitGroup, GrpcServerData) *grpcp.Server
 }
 
@@ -40,13 +53,6 @@ func NewGrpc() grpc {
 	return &grpc_implementation{}
 }
 
-// Create gRPC server
-//
-// @param wg *sync.WaitGroup: WaitGroup to add the server routine.
-//
-// @param sData GrpcServerData: Struct with necessary data to set up the gRPC server.
-//
-// @return *grpcp.Server: created & running gRPC.Server pointer
 func (g *grpc_implementation) CreateServer(wg *sync.WaitGroup, sData GrpcServerData) *grpcp.Server {
 	// Create TLS credentials
 	creds, err := credentials.NewServerTLSFromFile(sData.CertPath, sData.KeyPath)
@@ -77,11 +83,6 @@ func (g *grpc_implementation) CreateServer(wg *sync.WaitGroup, sData GrpcServerD
 	return gRPCServer
 }
 
-// Create gRPC Client
-//
-// @param dialData GrpcConnData: WaitGroup to add the server routine.
-//
-// @return (*grpcp.Server, error): the stablished connection with the server & error if exists
 func (g *grpc_implementation) CreateClient(dialData GrpcConnData) *grpcp.ClientConn {
 	// Create a context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

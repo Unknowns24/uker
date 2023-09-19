@@ -21,7 +21,20 @@ var jwt_key string
 
 // Global interface
 type middlewares interface {
+	// Generate a valid JWT
+	//
+	// @param id uint: User id.
+	//
+	// @param keeplogin bool: Param to extend jwt valid time.
+	//
+	// @return (string, error): generated jwt & error if exists
 	GenerateJWT(id uint, keeplogin bool) (string, error)
+
+	// Middleware to validate if user is authenticated with a valid JWT
+	//
+	// @param c *fiber.Ctx: Current fiber context.
+	//
+	// @return error: error on authentication
 	IsAuthenticated(c *fiber.Ctx) error
 }
 
@@ -34,11 +47,6 @@ func NewMiddlewares(jwtKey string) middlewares {
 	return &middlewares_implementation{}
 }
 
-// Middleware to validate if user is authenticated with a valid JWT
-//
-// @param c *fiber.Ctx: Current fiber context.
-//
-// @return error: error on authentication
 func (m *middlewares_implementation) IsAuthenticated(c *fiber.Ctx) error {
 	cookie := c.Cookies(jwt_cookie_name)
 
@@ -69,13 +77,6 @@ func (m *middlewares_implementation) IsAuthenticated(c *fiber.Ctx) error {
 	return c.Next()
 }
 
-// Generate a valid JWT
-//
-// @param id uint: User id.
-//
-// @param keeplogin bool: Param to extend jwt valid time.
-//
-// @return (string, error): generated jwt & error if exists
 func (m *middlewares_implementation) GenerateJWT(id uint, keeplogin bool) (string, error) {
 	payload := jwt.RegisteredClaims{}
 	payload.Subject = strconv.Itoa(int(id))

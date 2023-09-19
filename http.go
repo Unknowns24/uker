@@ -48,9 +48,52 @@ type MutiformData struct {
 
 // Global interface
 type http interface {
+	// Server data pagination
+	//
+	// @param c *fiber.Ctx: current fiber context.
+	//
+	// @param db *gorm.DB: Database pointer to perform the pagination.
+	//
+	// @param tableName string: Name of the table to paginate.
+	//
+	// @param condition string: Where condition to add to the pagination if necessary.
+	//
+	// @param result interface{}: Interface of wantend result.
+	//
+	// @return (fiber.Map, error): map with all paginated data & error if exists
 	Paginate(c *fiber.Ctx, db *gorm.DB, tableName string, condition string, result interface{}) (fiber.Map, error)
+
+	// Create a fiber response as json string
+	//
+	// @param c *fiber.Ctx: Current fiber context.
+	//
+	// @param resCode int: Http response code.
+	//
+	// @param message string: Response message.
+	//
+	// @param extraValues map[string]string: map with all extras key, value that response need to return.
+	//
+	// @return error: return fiber response
 	EndOutPut(c *fiber.Ctx, resCode int, message string, extraValues map[string]string) error
+
+	// Parse request body data
+	//
+	// @param c *fiber.Ctx: Current fiber context.
+	//
+	// @param requestInterface *interface{}: Interface pointer where parsed data will be stored.
+	//
+	// @return error: error if exists
 	BodyParser(c *fiber.Ctx, requestInterface interface{}) error
+
+	// Multi part form parser
+	//
+	// @param c *fiber.Ctx: current fiber context.
+	//
+	// @param values map[string]*interface{}: map with the value to be parsed and the interface pointer to decode it.
+	//
+	// @param files []string: string slice with all files that are required of the multipart.
+	//
+	// @return (map[string][]*multipart.FileHeader, error): map with all files & error if exists
 	MultiPartFormParser(ctx *fiber.Ctx, values map[string]interface{}, files []string) (map[string][]*multipart.FileHeader, error)
 }
 
@@ -66,19 +109,6 @@ func NewHttp(appResponseSuffix string) http {
 	return &http_implementation{}
 }
 
-// Server data pagination
-//
-// @param c *fiber.Ctx: current fiber context.
-//
-// @param db *gorm.DB: Database pointer to perform the pagination.
-//
-// @param tableName string: Name of the table to paginate.
-//
-// @param condition string: Where condition to add to the pagination if necessary.
-//
-// @param result interface{}: Interface of wantend result.
-//
-// @return (fiber.Map, error): map with all paginated data & error if exists
 func (h *http_implementation) Paginate(c *fiber.Ctx, db *gorm.DB, tableName string, condition string, result interface{}) (fiber.Map, error) {
 	// Build a base query without conditions
 	query := db.Model(result).Table(tableName)
@@ -133,28 +163,10 @@ func (h *http_implementation) Paginate(c *fiber.Ctx, db *gorm.DB, tableName stri
 	}, nil
 }
 
-// Create a fiber response as json string
-//
-// @param c *fiber.Ctx: Current fiber context.
-//
-// @param resCode int: Http response code.
-//
-// @param message string: Response message.
-//
-// @param extraValues map[string]string: map with all extras key, value that response need to return.
-//
-// @return error: return fiber response
 func (h *http_implementation) EndOutPut(c *fiber.Ctx, resCode int, message string, extraValues map[string]string) error {
 	return endOutPut(c, resCode, message, extraValues)
 }
 
-// Parse request body data
-//
-// @param c *fiber.Ctx: Current fiber context.
-//
-// @param requestInterface *interface{}: Interface pointer where parsed data will be stored.
-//
-// @return error: error if exists
 func (h *http_implementation) BodyParser(c *fiber.Ctx, requestInterface interface{}) error {
 	// Validate if requestInterface is a pointer
 	if reflect.ValueOf(requestInterface).Kind() != reflect.Ptr {
@@ -189,15 +201,6 @@ func (h *http_implementation) BodyParser(c *fiber.Ctx, requestInterface interfac
 	return nil
 }
 
-// Multi part form parser
-//
-// @param c *fiber.Ctx: current fiber context.
-//
-// @param values map[string]*interface{}: map with the value to be parsed and the interface pointer to decode it.
-//
-// @param files []string: string slice with all files that are required of the multipart.
-//
-// @return (map[string][]*multipart.FileHeader, error): map with all files & error if exists
 func (h *http_implementation) MultiPartFormParser(ctx *fiber.Ctx, values map[string]interface{}, files []string) (map[string][]*multipart.FileHeader, error) {
 	// Get MultiparForm pointer
 	MultipartForm, err := ctx.MultipartForm()
