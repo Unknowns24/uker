@@ -32,6 +32,23 @@ const (
 	CONTEXT_VALUE_USERID = "user-id"
 )
 
+// request constants
+const (
+	REQUEST_KEY_DATA    = "data"
+	REQUEST_KEY_MESSAGE = "message"
+)
+
+// pagination constants
+const (
+	PAGINATION_ORDER_ASC      = "asc"
+	PAGINATION_ORDER_DESC     = "desc"
+	PAGINATION_QUERY_SORT     = "sort"
+	PAGINATION_QUERY_PAGE     = "page"
+	PAGINATION_QUERY_SEARCH   = "search"
+	PAGINATION_QUERY_PERPAGE  = "per_page"
+	PAGINATION_QUERY_SORT_DIR = "sort_dir"
+)
+
 // struct tag
 const (
 	UKER_STRUCT_TAG          = "uker"
