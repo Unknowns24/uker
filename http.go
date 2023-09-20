@@ -198,6 +198,11 @@ func (h *http_implementation) BodyParser(c *fiber.Ctx, requestInterface interfac
 		return endOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_BAD_REQUEST, nil)
 	}
 
+	// Check if required values on valueInterface are not nil
+	if existAllRequiredParams := requiredParamsExists(requestInterface); !existAllRequiredParams {
+		return endOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_MISSING_PARAMS, nil)
+	}
+
 	return nil
 }
 
@@ -216,6 +221,7 @@ func (h *http_implementation) MultiPartFormParser(ctx *fiber.Ctx, values map[str
 
 		// Get requested FormValue value if exists inside of the multiform
 		valueData := ctx.FormValue(value, "")
+
 		// Check if field exists
 		if valueData == "" {
 			return nil, endOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_BAD_REQUEST, nil)
@@ -232,6 +238,11 @@ func (h *http_implementation) MultiPartFormParser(ctx *fiber.Ctx, values map[str
 		// Parse decoded json string to the specified interface
 		if err := json.Unmarshal(decoded, &valueInterface); err != nil {
 			return nil, endOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_INVALID_JSON, nil)
+		}
+
+		// Check if required values on valueInterface are not nil
+		if existAllRequiredParams := requiredParamsExists(valueInterface); !existAllRequiredParams {
+			return nil, endOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_MISSING_PARAMS, nil)
 		}
 	}
 
@@ -266,4 +277,24 @@ func endOutPut(c *fiber.Ctx, resCode int, message string, extraValues map[string
 
 	// return error or success code
 	return c.Status(resCode).SendString(string(jsonData))
+}
+
+func requiredParamsExists(x interface{}) bool {
+	interfaceType := reflect.TypeOf(x).Elem()
+	interfaceValues := reflect.ValueOf(x).Elem()
+
+	for i := 0; i < interfaceType.NumField(); i++ {
+		field := interfaceType.Field(i)
+		tagValue := field.Tag.Get(UKER_STRUCT_TAG)
+
+		if !strings.Contains(tagValue, UKER_STRUCT_TAG_REQUIRED) {
+			continue
+		}
+
+		if interfaceValues.Field(i).Type().Kind() == reflect.String && interfaceValues.Field(i).IsZero() {
+			return false
+		}
+	}
+
+	return true
 }
