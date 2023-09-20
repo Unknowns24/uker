@@ -13,8 +13,10 @@ import (
 )
 
 type testStruct struct {
-	Param1 string
-	Param2 string
+	Param1 string `uker:"required"`
+	Param2 string `uker:"required"`
+	Param3 int    `uker:"required"`
+	Param4 bool
 }
 
 func TestMultiPartFormParser(t *testing.T) {
@@ -91,6 +93,8 @@ func TestBodyParser(t *testing.T) {
 	test := testStruct{
 		Param1: "value1",
 		Param2: "value2",
+		Param3: 0,
+		Param4: false,
 	}
 
 	// Marshal the test structure to JSON
@@ -133,6 +137,10 @@ func TestBodyParser(t *testing.T) {
 	err = uker.NewHttp("").BodyParser(c, &data)
 	if err != nil {
 		t.Errorf("Error: %v", err)
+	}
+
+	if c.Response().StatusCode() != fiber.StatusOK {
+		t.Errorf("Error: %v", c.Response())
 	}
 
 	// Verify that the testStruct was filled correctly
