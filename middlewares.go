@@ -132,8 +132,11 @@ func (m *middlewares_implementation) HasPermissions(authService proto.AuthServic
 				return c.SendString(err.Error())
 			}
 
+			// Store perm value
+			c.Context().SetUserValue(perm, havePermRes.HavePermission)
+
 			if !havePermRes.HavePermission {
-				return endOutPut(c, fiber.StatusBadRequest, ERROR_MIDDLEWARE_INSUFICIENT_PERMISSIONS, nil)
+				return endOutPut(c, fiber.StatusForbidden, ERROR_MIDDLEWARE_INSUFICIENT_PERMISSIONS, nil)
 			}
 		}
 
@@ -162,11 +165,14 @@ func (m *middlewares_implementation) HasAtLeastOnePermission(authService proto.A
 				return c.SendString(err.Error())
 			}
 
+			// Store perm value
+			c.Context().SetUserValue(perm, havePermRes.HavePermission)
+
 			if havePermRes.HavePermission {
 				return c.Next()
 			}
 		}
 
-		return endOutPut(c, fiber.StatusBadRequest, ERROR_MIDDLEWARE_INSUFICIENT_PERMISSIONS, nil)
+		return endOutPut(c, fiber.StatusForbidden, ERROR_MIDDLEWARE_INSUFICIENT_PERMISSIONS, nil)
 	}
 }
