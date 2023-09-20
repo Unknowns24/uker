@@ -14,23 +14,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// request constants
-const (
-	request_key_data    = "data"
-	request_key_message = "message"
-)
-
-// pagination constants
-const (
-	pagination_order_asc      = "asc"
-	pagination_order_desc     = "desc"
-	pagination_query_sort     = "sort"
-	pagination_query_page     = "page"
-	pagination_query_search   = "search"
-	pagination_query_per_page = "per_page"
-	pagination_query_sort_dir = "sort_dir"
-)
-
 // Variable to store application response sufix
 var appSuffix string
 
@@ -111,30 +94,53 @@ func NewHttp(appResponseSuffix string) Http {
 
 func (h *http_implementation) Paginate(c *fiber.Ctx, db *gorm.DB, tableName string, condition string, result interface{}) (fiber.Map, error) {
 	// Build a base query without conditions
-	query := db.Model(result).Table(tableName)
+	query := db.Table(tableName)
 
 	if condition != "" {
 		query = query.Where(condition)
 	}
 
 	// Apply search if provided
-	if search := c.Query(pagination_query_search); search != "" {
-		// Search conditions for non-ID fields
-		query = query.Where("NOT id = ? AND (column1 LIKE ? OR column2 LIKE ?)", 0, "%"+search+"%", "%"+search+"%")
+	if search := c.Query(PAGINATION_QUERY_SEARCH); search != "" {
+		// Get the type of the result to dynamically generate search conditions
+		modelType := reflect.TypeOf(result).Elem().Elem()
+
+		// Start with an empty condition
+		searchCondition := ""
+
+		// Iterate over the fields of the model
+		for i := 0; i < modelType.NumField(); i++ {
+			fieldName := modelType.Field(i).Name
+
+			// Ignore the "id" field
+			if strings.ToLower(fieldName) == "id" {
+				continue
+			}
+
+			// Add a condition for the current field
+			if searchCondition == "" {
+				searchCondition = fieldName + " LIKE " + "'%%" + search + "%%'"
+			} else {
+				searchCondition += " OR " + fieldName + " LIKE " + "'%%" + search + "%%'"
+			}
+		}
+
+		// Combine the search condition with the existing condition using "AND"
+		query = query.Where(searchCondition)
 	}
 
 	// Apply sorting if provided
-	if sort := c.Query(pagination_query_sort); sort != "" {
-		if sortDir := c.Query(pagination_query_sort_dir, pagination_order_asc); sortDir == pagination_order_desc {
-			query = query.Order(fmt.Sprintf("%s %s", sort, strings.ToUpper(pagination_order_desc)))
+	if sort := c.Query(PAGINATION_QUERY_SORT); sort != "" {
+		if sortDir := c.Query(PAGINATION_QUERY_SORT_DIR, PAGINATION_ORDER_ASC); sortDir == PAGINATION_ORDER_DESC {
+			query = query.Order(fmt.Sprintf("%s %s", sort, strings.ToUpper(PAGINATION_ORDER_DESC)))
 		} else {
 			query = query.Order(sort)
 		}
 	}
 
 	// Convert URL parameters to integers
-	page, err1 := strconv.Atoi(c.Query(pagination_query_page, "1"))
-	perPage, err2 := strconv.Atoi(c.Query(pagination_query_per_page, "10"))
+	page, err1 := strconv.Atoi(c.Query(PAGINATION_QUERY_PAGE, "1"))
+	perPage, err2 := strconv.Atoi(c.Query(PAGINATION_QUERY_PERPAGE, "10"))
 
 	if err1 != nil || err2 != nil {
 		return nil, endOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_BAD_REQUEST, nil)
@@ -151,15 +157,14 @@ func (h *http_implementation) Paginate(c *fiber.Ctx, db *gorm.DB, tableName stri
 	}
 
 	// Perform pagination
-	var paginatedResult interface{}
-	query.Limit(perPage).Offset((page - 1) * perPage).Find(paginatedResult)
+	query.Limit(perPage).Offset((page - 1) * perPage).Find(result)
 
 	return fiber.Map{
 		"page":      page,
 		"total":     total,
 		"per_page":  perPage,
 		"last_page": lastPage,
-		"data":      paginatedResult,
+		"data":      result,
 	}, nil
 }
 
@@ -170,7 +175,7 @@ func (h *http_implementation) EndOutPut(c *fiber.Ctx, resCode int, message strin
 func (h *http_implementation) BodyParser(c *fiber.Ctx, requestInterface interface{}) error {
 	// Validate if requestInterface is a pointer
 	if reflect.ValueOf(requestInterface).Kind() != reflect.Ptr {
-		return fmt.Errorf("expected %s as requestInterface, %s received", reflect.Ptr, reflect.ValueOf(requestInterface).Kind())
+		panic(fmt.Errorf("expected %s as requestInterface, %s received", reflect.Ptr, reflect.ValueOf(requestInterface).Kind()))
 	}
 
 	var bodyData map[string]string
@@ -181,12 +186,12 @@ func (h *http_implementation) BodyParser(c *fiber.Ctx, requestInterface interfac
 	}
 
 	// Check if the 'data' field exists within the JSON in the body
-	if bodyData[request_key_data] == "" {
+	if bodyData[REQUEST_KEY_DATA] == "" {
 		return endOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_MISSING_DATA, nil)
 	}
 
 	// Decode the value of the 'data' field from base64
-	decoded, err := base64.StdEncoding.DecodeString(bodyData[request_key_data])
+	decoded, err := base64.StdEncoding.DecodeString(bodyData[REQUEST_KEY_DATA])
 
 	// Check if there was an error while decoding the base64
 	if err != nil {
@@ -216,7 +221,7 @@ func (h *http_implementation) MultiPartFormParser(ctx *fiber.Ctx, values map[str
 	// Parse every requested value on the values map
 	for value, valueInterface := range values {
 		if reflect.ValueOf(valueInterface).Kind() != reflect.Ptr {
-			return nil, fmt.Errorf("expected %s as value interface, %s received", reflect.Ptr, reflect.ValueOf(valueInterface).Kind())
+			panic(fmt.Errorf("expected %s as value interface, %s received", reflect.Ptr, reflect.ValueOf(valueInterface).Kind()))
 		}
 
 		// Get requested FormValue value if exists inside of the multiform
@@ -270,7 +275,7 @@ func endOutPut(c *fiber.Ctx, resCode int, message string, extraValues map[string
 	}
 
 	// Add message to the map
-	extraValues[request_key_message] = fmt.Sprintf("%s%s", message, appSuffix)
+	extraValues[REQUEST_KEY_MESSAGE] = fmt.Sprintf("%s%s", message, appSuffix)
 
 	// Encode response as json
 	jsonData, _ := json.Marshal(response{Data: extraValues, Code: resCode})
