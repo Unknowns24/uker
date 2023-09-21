@@ -143,7 +143,7 @@ func (h *http_implementation) Paginate(c *fiber.Ctx, db *gorm.DB, tableName stri
 	perPage, err2 := strconv.Atoi(c.Query(PAGINATION_QUERY_PERPAGE, "10"))
 
 	if err1 != nil || err2 != nil {
-		return nil, endOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_BAD_REQUEST, nil)
+		return nil, h.EndOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_BAD_REQUEST, nil)
 	}
 
 	// Perform the query and count the total records
@@ -182,12 +182,12 @@ func (h *http_implementation) BodyParser(c *fiber.Ctx, requestInterface interfac
 
 	// Parse the content sent in the body
 	if err := c.BodyParser(&bodyData); err != nil {
-		return endOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_INVALID_JSON, nil)
+		return h.EndOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_INVALID_JSON, nil)
 	}
 
 	// Check if the 'data' field exists within the JSON in the body
 	if bodyData[REQUEST_KEY_DATA] == "" {
-		return endOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_MISSING_DATA, nil)
+		return h.EndOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_MISSING_DATA, nil)
 	}
 
 	// Decode the value of the 'data' field from base64
@@ -195,17 +195,17 @@ func (h *http_implementation) BodyParser(c *fiber.Ctx, requestInterface interfac
 
 	// Check if there was an error while decoding the base64
 	if err != nil {
-		return endOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_INVALID_BASE64, nil)
+		return h.EndOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_INVALID_BASE64, nil)
 	}
 
 	// Parse the JSON encoded in base64
 	if err := json.Unmarshal([]byte(string(decoded)), &requestInterface); err != nil {
-		return endOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_BAD_REQUEST, nil)
+		return h.EndOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_BAD_REQUEST, nil)
 	}
 
 	// Check if required values on valueInterface are not nil
 	if existAllRequiredParams := requiredParamsExists(requestInterface); !existAllRequiredParams {
-		return endOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_MISSING_PARAMS, nil)
+		return h.EndOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_MISSING_PARAMS, nil)
 	}
 
 	return nil
@@ -215,7 +215,7 @@ func (h *http_implementation) MultiPartFormParser(ctx *fiber.Ctx, values map[str
 	// Get MultiparForm pointer
 	MultipartForm, err := ctx.MultipartForm()
 	if err != nil {
-		return nil, endOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_MULTIPARTFORM_INVALID_FORM, nil)
+		return nil, h.EndOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_MULTIPARTFORM_INVALID_FORM, nil)
 	}
 
 	// Parse every requested value on the values map
@@ -229,7 +229,7 @@ func (h *http_implementation) MultiPartFormParser(ctx *fiber.Ctx, values map[str
 
 		// Check if field exists
 		if valueData == "" {
-			return nil, endOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_BAD_REQUEST, nil)
+			return nil, h.EndOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_BAD_REQUEST, nil)
 		}
 
 		// Decoding base64 multiform value data
@@ -237,17 +237,17 @@ func (h *http_implementation) MultiPartFormParser(ctx *fiber.Ctx, values map[str
 
 		// Check if error happens on base64 decoding
 		if err != nil {
-			return nil, endOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_INVALID_BASE64, nil)
+			return nil, h.EndOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_INVALID_BASE64, nil)
 		}
 
 		// Parse decoded json string to the specified interface
 		if err := json.Unmarshal(decoded, &valueInterface); err != nil {
-			return nil, endOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_INVALID_JSON, nil)
+			return nil, h.EndOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_INVALID_JSON, nil)
 		}
 
 		// Check if required values on valueInterface are not nil
 		if existAllRequiredParams := requiredParamsExists(valueInterface); !existAllRequiredParams {
-			return nil, endOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_MISSING_PARAMS, nil)
+			return nil, h.EndOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_MISSING_PARAMS, nil)
 		}
 	}
 
@@ -261,7 +261,7 @@ func (h *http_implementation) MultiPartFormParser(ctx *fiber.Ctx, values map[str
 			continue
 		}
 
-		return nil, endOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_MULTIPARTFORM_MISSING_FILES, nil)
+		return nil, h.EndOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_MULTIPARTFORM_MISSING_FILES, nil)
 	}
 
 	return ParsedFiles, nil
