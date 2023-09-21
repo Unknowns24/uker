@@ -49,6 +49,14 @@ const (
 	PAGINATION_QUERY_SORT_DIR = "sort_dir"
 )
 
+// middleware contants
+const (
+	JWT_COOKIE_NAME      = "jwt"
+	JWT_CLAIM_KEY_IP     = "ip"
+	JWT_CLAIM_KEY_DATA   = "data"
+	JWT_CLAIM_KEY_ISSUER = "iss"
+)
+
 // struct tag
 const (
 	UKER_STRUCT_TAG          = "uker"
