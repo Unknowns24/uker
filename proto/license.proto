@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package grpc;
+
+option go_package = "apps/proto";
+
+message LicensePurchaseReq {
+    uint64 userId = 1;
+    uint64 appId = 2;
+    string paymentId = 3;
+}
+
+message LicensePurchaseRes {
+    bool success = 1;
+    string license = 2;
+}
+
+message LicenseRenewReq {
+    uint64 appId = 1;
+    string license = 2;
+    string renewId = 3;
+}
+
+message LicenseRenewRes {
+    bool success = 1;
+}
+
+message LicenseRefoundReq {
+    uint64 appId = 1;
+    string license = 2;
+}
+
+message LicenseRefoundRes {
+    bool success = 1;
+}
+
+service LicenseService {
+    rpc LicenseRenew(LicenseRenewReq) returns (LicenseRenewRes);
+    rpc LicenseRefound(LicenseRefoundReq) returns (LicenseRefoundRes);
+    rpc LicensePurchase(LicensePurchaseReq) returns (LicensePurchaseRes);
+}
