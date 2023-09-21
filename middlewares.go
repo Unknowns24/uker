@@ -10,14 +10,6 @@ import (
 	"github.com/unknowns24/uker/proto"
 )
 
-// middleware contants
-const (
-	jwt_cookie_name      = "jwt"
-	jwt_claim_key_ip     = "ip"
-	jwt_claim_key_data   = "data"
-	jwt_claim_key_issuer = "iss"
-)
-
 // variable to store jwt key
 var jwt_key string
 
@@ -68,7 +60,7 @@ func NewMiddlewares(jwtKey string) Middlewares {
 }
 
 func (m *middlewares_implementation) IsAuthenticated(c *fiber.Ctx) error {
-	cookie := c.Cookies(jwt_cookie_name)
+	cookie := c.Cookies(JWT_COOKIE_NAME)
 
 	token, err := jwt.Parse(cookie, func(token *jwt.Token) (interface{}, error) {
 		return []byte(jwt_key), nil
@@ -80,10 +72,10 @@ func (m *middlewares_implementation) IsAuthenticated(c *fiber.Ctx) error {
 
 	claims := token.Claims.(jwt.MapClaims)
 
-	data := claims[jwt_claim_key_data].(map[string]interface{})
-	ip := data[jwt_claim_key_ip].(string)
+	data := claims[JWT_CLAIM_KEY_DATA].(map[string]interface{})
+	ip := data[JWT_CLAIM_KEY_IP].(string)
 
-	id, err := strconv.ParseUint(claims[jwt_claim_key_issuer].(string), 10, 32)
+	id, err := strconv.ParseUint(claims[JWT_CLAIM_KEY_ISSUER].(string), 10, 32)
 
 	if err != nil {
 		return endOutPut(c, fiber.StatusUnauthorized, ERROR_MIDDLEWARE_INVALID_JWT, nil)
