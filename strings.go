@@ -4,8 +4,27 @@ import "strings"
 
 // Global interface
 type str interface {
+	// Check if string contains chars
+	//
+	// @param str string: String to validate.
+	//
+	// @param chars []string: Chars to search.
+	//
+	// @return bool: if string contains at least one of the chars will return true
 	Contains(str string, chars []string) bool
+
+	// Remove invalid chars from string
+	//
+	// @param str string: String to be sanitized.
+	//
+	// @return string: sanitized string
 	SanitizeString(str string) string
+
+	// Check if string contains invalid chars
+	//
+	// @param str string: String to validate.
+	//
+	// @return bool: if string contains at least one of the invalid chars will return true
 	HasNoValidChars(str string) bool
 }
 
