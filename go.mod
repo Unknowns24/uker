@@ -29,6 +29,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.17 // indirect
 	github.com/rabbitmq/amqp091-go v1.8.1
 	github.com/rivo/uniseg v0.2.0 // indirect
+	github.com/rs/zerolog v1.31.0
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.49.0
 	github.com/valyala/tcplisten v1.0.0 // indirect
