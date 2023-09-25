@@ -57,6 +57,15 @@ const (
 	JWT_CLAIM_KEY_ISSUER = "iss"
 )
 
+// logger constants
+const (
+	LOGGER_LEVEL_INFO  = "info"
+	LOGGER_LEVEL_WARN  = "warn"
+	LOGGER_LEVEL_ERROR = "error"
+	LOGGER_LEVEL_DEBUG = "debug"
+	LOGGER_LEVEL_FATAL = "fatal"
+)
+
 // struct tag
 const (
 	UKER_STRUCT_TAG          = "uker"
