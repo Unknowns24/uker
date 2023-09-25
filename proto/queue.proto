@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package grpc;
+
+option go_package = "apps/proto";
+
+message CreateMessageReq {
+    string Exchange = 2;
+    string Message = 3;
+}
+
+message CreateMessageRes {
+    bool success = 1;
+    string GlobalId = 2;
+}
+
+message MessageExistReq {
+    string GlobalId = 1;
+}
+
+message MessageExistRes {
+    bool exist = 1;
+    uint64 state = 2;
+    string errorCode = 3;
+}
+
+
+message UpdateMessageStateReq {
+    string GlobalId = 1;
+    uint64 state = 2;
+    string errorCode = 3;
+}
+
+message UpdateMessageStateRes {
+    bool success = 1;
+}
+
+service QueueService {
+    rpc CreateMessage(CreateMessageReq) returns (CreateMessageRes);
+    rpc MessageExist(MessageExistReq) returns (MessageExistRes);
+    rpc UpdateMessageState(UpdateMessageStateReq) returns (UpdateMessageStateRes);
+}
