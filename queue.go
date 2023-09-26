@@ -37,20 +37,24 @@ type QueueMessage struct {
 // Global interface
 type Queue interface {
 	// SendQueueMessage will send a message via AMQP to the specified exchange
-	SendQueueMessage(conn QueueConnData, msg QueueMessage) error
+	SendQueueMessage(msg QueueMessage) error
 	// ConsumeQueueMessage will consume the messages from specified exchange and queue
-	ConsumeQueueMessages(conn QueueConnData, cons QueueConsumeData) (<-chan amqp.Delivery, error)
+	ConsumeQueueMessages(cons QueueConsumeData) (<-chan amqp.Delivery, error)
 }
 
 // Local struct to be implmented
-type queue_implementation struct{}
-
-// External contructor
-func NewQueue() Queue {
-	return &queue_implementation{}
+type queue_implementation struct {
+	conn QueueConnData
 }
 
-func (rmq *queue_implementation) ConsumeQueueMessages(conn QueueConnData, cons QueueConsumeData) (<-chan amqp.Delivery, error) {
+// External contructor
+func NewQueue(connData QueueConnData) Queue {
+	return &queue_implementation{
+		conn: connData,
+	}
+}
+
+func (rmq *queue_implementation) ConsumeQueueMessages(cons QueueConsumeData) (<-chan amqp.Delivery, error) {
 	var chDelivery <-chan amqp.Delivery
 	var err error
 
@@ -61,7 +65,7 @@ func (rmq *queue_implementation) ConsumeQueueMessages(conn QueueConnData, cons Q
 	// Main loop for connection recovery and backoff
 	for {
 		// Try reconnecting and setting up consumption with backoff
-		chDelivery, err = consumeWithBackoffAndReconnect(conn, cons, backoffCfg)
+		chDelivery, err = consumeWithBackoffAndReconnect(rmq.conn, cons, backoffCfg)
 		if err != nil {
 			log.Printf("Error while setting up consumer: %v. Retrying with backoff...", err)
 		} else {
@@ -194,7 +198,7 @@ func rmqReconnect(rmqConn *amqp.Connection, chDelivery *<-chan amqp.Delivery, co
 	return nil
 }
 
-func (rmq *queue_implementation) SendQueueMessage(conn QueueConnData, msg QueueMessage) error {
+func (rmq *queue_implementation) SendQueueMessage(msg QueueMessage) error {
 	if msg.DeliveryMode != amqp.Persistent && msg.DeliveryMode != amqp.Transient {
 		panic(fmt.Errorf("invalid amqp message delivery mode %d|%d expected, %d received", amqp.Persistent, amqp.Transient, msg.DeliveryMode))
 	}
@@ -205,12 +209,12 @@ func (rmq *queue_implementation) SendQueueMessage(conn QueueConnData, msg QueueM
 	boData.MaxInterval = time.Minute * 5
 
 	// Realiza reintentos con backoff
-	err := backoff.Retry(sendQueueMsgOperation(conn, msg), boData)
+	err := backoff.Retry(sendQueueMsgOperation(rmq.conn, msg), boData)
 
 	if err != nil {
 		// If every attempts fail, route message to Dead Letter Queue
 		if msg.DeadLetterQueue != "" {
-			err = routeMessageToDeadLetter(conn, msg)
+			err = routeMessageToDeadLetter(rmq.conn, msg)
 			if err != nil {
 				return err
 			}

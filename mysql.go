@@ -25,20 +25,24 @@ type Mysql interface {
 	// @param migrate ...interface{}: all interfaces to import to database.
 	//
 	// @return (db *gorm.DB, err error): database connection & error if exists
-	StablishConnection(conn MySQLConnData, migrate ...interface{}) (db *gorm.DB, err error)
+	StablishConnection(migrate ...interface{}) (db *gorm.DB, err error)
 }
 
 // Local struct to be implmented
-type mysql_implementation struct{}
-
-// External contructor
-func NewMySQL() Mysql {
-	return &mysql_implementation{}
+type mysql_implementation struct {
+	conn MySQLConnData
 }
 
-func (sql *mysql_implementation) StablishConnection(conn MySQLConnData, migrate ...interface{}) (db *gorm.DB, err error) {
+// External contructor
+func NewMySQL(connData MySQLConnData) Mysql {
+	return &mysql_implementation{
+		conn: connData,
+	}
+}
+
+func (sql *mysql_implementation) StablishConnection(migrate ...interface{}) (db *gorm.DB, err error) {
 	// create string connection
-	connString := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8&parseTime=True&loc=Local", conn.User, conn.Password, conn.Host, conn.Port, conn.Database)
+	connString := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8&parseTime=True&loc=Local", sql.conn.User, sql.conn.Password, sql.conn.Host, sql.conn.Port, sql.conn.Database)
 
 	// open connection to mysql server
 	db, err = gorm.Open(mysqlDriver.Open(connString), &gorm.Config{})
