@@ -1,9 +1,11 @@
 package uker
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"mime/multipart"
 	"reflect"
@@ -78,6 +80,20 @@ type Http interface {
 	//
 	// @return (map[string][]*multipart.FileHeader, error): map with all files & error if exists
 	MultiPartFormParser(ctx *fiber.Ctx, values map[string]interface{}, files []string) (map[string][]*multipart.FileHeader, error)
+
+	// Multi part file parser
+	//
+	// @param files []*multipart.FileHeader: slice with all multipart files to be added as buff
+	//
+	// @return [][]byte: files buffer
+	MultiPartFileToBuff(files []*multipart.FileHeader) [][]byte
+
+	// Multi part file parser
+	//
+	// @param files []*multipart.FileHeader: slice with all multipart files
+	//
+	// @return ([][]byte, error): file buffer & error if exists
+	FirstMultiPartFileToBuff(files []*multipart.FileHeader) ([][]byte, error)
 }
 
 // Local struct to be implmented
@@ -267,6 +283,49 @@ func (h *http_implementation) MultiPartFormParser(ctx *fiber.Ctx, values map[str
 	return ParsedFiles, nil
 }
 
+func (h *http_implementation) MultiPartFileToBuff(files []*multipart.FileHeader) [][]byte {
+	filesBuffers := make([][]byte, len(files))
+
+	for k, file := range files {
+		thisFile, err := file.Open()
+		if err != nil {
+			continue
+		}
+
+		buf := bytes.NewBuffer(nil)
+		_, err = io.Copy(buf, thisFile)
+
+		if err != nil {
+			continue
+		}
+
+		filesBuffers[k] = buf.Bytes()
+	}
+
+	return filesBuffers
+}
+
+func (h *http_implementation) FirstMultiPartFileToBuff(files []*multipart.FileHeader) ([][]byte, error) {
+	fileBuff := make([][]byte, 1)
+
+	// Get the first image in case there is more than one
+	thisFile, err := files[0].Open()
+	if err != nil {
+		return nil, fmt.Errorf("cannot open the first file of the slice: %s", err)
+	}
+
+	buf := bytes.NewBuffer(nil)
+	_, err = io.Copy(buf, thisFile)
+
+	if err != nil {
+		return nil, fmt.Errorf("cannot copy the first file content to the buffer: %s", err)
+	}
+
+	fileBuff[0] = buf.Bytes()
+
+	return fileBuff, nil
+}
+
 // Declaring this local function tu use on all utility files
 func endOutPut(c *fiber.Ctx, resCode int, message string, extraValues map[string]string) error {
 	// if extra values is nil -> set it as an empty map[string]string
@@ -292,12 +351,10 @@ func requiredParamsExists(x interface{}) bool {
 		field := interfaceType.Field(i)
 		tagValue := field.Tag.Get(UKER_STRUCT_TAG)
 
-		if !strings.Contains(tagValue, UKER_STRUCT_TAG_REQUIRED) {
-			continue
-		}
-
-		if interfaceValues.Field(i).Type().Kind() == reflect.String && interfaceValues.Field(i).IsZero() {
-			return false
+		if strings.Contains(tagValue, UKER_STRUCT_TAG_REQUIRED) {
+			if interfaceValues.Field(i).Type().Kind() == reflect.String && interfaceValues.Field(i).IsZero() {
+				return false
+			}
 		}
 	}
 
