@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"mime/multipart"
+	"reflect"
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
@@ -199,5 +201,55 @@ func TestEndOutPut(t *testing.T) {
 
 	if dataResponse["key2"] != "value2" {
 		t.Errorf("Incorrect value for 'key2' in the response. Expected '%s', but got '%s'", "value2", dataResponse["key2"])
+	}
+}
+
+func TestExtractReqPaginationParameters(t *testing.T) {
+	type args struct {
+		c *fiber.Ctx
+	}
+
+	// Create a Fiber app
+	app := fiber.New()
+
+	// Create a simulated Fiber context
+	sortTestCtx := app.AcquireCtx(&fasthttp.RequestCtx{})
+	sortTestCtx.Request().URI().SetQueryString(fmt.Sprintf("%s=%s&%s=%s", uker.PAGINATION_QUERY_SORT, "id", uker.PAGINATION_QUERY_SORT_DIR, uker.PAGINATION_ORDER_DESC))
+
+	fullTestCtx := app.AcquireCtx(&fasthttp.RequestCtx{})
+	fullTestCtx.Request().URI().SetQueryString(fmt.Sprintf("%s=%s&%s=2&%s=5&%s=%s&%s=%s", uker.PAGINATION_QUERY_SEARCH, "ss", uker.PAGINATION_QUERY_PAGE, uker.PAGINATION_QUERY_PERPAGE, uker.PAGINATION_QUERY_SORT, "id", uker.PAGINATION_QUERY_SORT_DIR, uker.PAGINATION_ORDER_DESC))
+
+	emptyCtx := app.AcquireCtx(&fasthttp.RequestCtx{})
+
+	tests := []struct {
+		name string
+		desc string
+		args args
+		want uker.Pagination
+	}{
+		{
+			name: "full test",
+			desc: "test pagination with all parameter",
+			args: args{
+				c: fullTestCtx,
+			},
+			want: uker.Pagination{Search: "ss", Sort: "id", SortDir: uker.PAGINATION_ORDER_DESC, Page: "2", PerPage: "5"},
+		},
+		{
+			name: "empty test",
+			desc: "test pagination with none parameter",
+			args: args{
+				c: emptyCtx,
+			},
+			want: uker.Pagination{SortDir: uker.PAGINATION_ORDER_ASC, Page: "1", PerPage: "10"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := uker.NewHttp("").ExtractReqPaginationParameters(tt.args.c); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ExtractReqPaginationParameters() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
