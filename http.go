@@ -77,6 +77,13 @@ type Http interface {
 	//
 	// @return ([][]byte, error): file buffer & error if exists
 	FirstMultiPartFileToBuff(files []*multipart.FileHeader) ([][]byte, error)
+
+	// Extract request pagination parameters
+	//
+	// @param c *fiber.Ctx: fiber request context
+	//
+	// @return Pagination: Pagination struct with all request params
+	ExtractReqPaginationParameters(c *fiber.Ctx) Pagination
 }
 
 // Local struct to be implmented
@@ -231,6 +238,16 @@ func (h *http_implementation) FirstMultiPartFileToBuff(files []*multipart.FileHe
 	fileBuff[0] = buf.Bytes()
 
 	return fileBuff, nil
+}
+
+func (h *http_implementation) ExtractReqPaginationParameters(c *fiber.Ctx) Pagination {
+	return Pagination{
+		Search:  c.Query(PAGINATION_QUERY_SEARCH),
+		Sort:    c.Query(PAGINATION_QUERY_SORT),
+		SortDir: c.Query(PAGINATION_QUERY_SORT_DIR, PAGINATION_ORDER_ASC),
+		Page:    c.Query(PAGINATION_QUERY_PAGE, "1"),
+		PerPage: c.Query(PAGINATION_QUERY_PERPAGE, "10"),
+	}
 }
 
 // Declaring this local function tu use on all utility files
