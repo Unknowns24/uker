@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"mime/multipart"
 	"testing"
 
@@ -223,12 +222,6 @@ func TestPaginate(t *testing.T) {
 		t.Fatalf("Error creating GORM DB: %v", err)
 	}
 
-	// Create a Fiber app
-	app := fiber.New()
-
-	// Create a simulated Fiber context
-	c := app.AcquireCtx(&fasthttp.RequestCtx{})
-
 	// Import table
 	db.AutoMigrate(&TestProduct{})
 
@@ -245,13 +238,17 @@ func TestPaginate(t *testing.T) {
 
 	var result []TestProduct
 
-	// Call the Paginate function
-	paginationResult, err := uker.NewHttp("").Paginate(c, db, "test_products", "state != 0", &result)
-
-	// Check if there is an error
-	if err != nil {
-		t.Errorf("Error: %v", err)
+	noPaginateParams := uker.Pagination{}
+	paginateParams := uker.Pagination{
+		Page:    "1",
+		Search:  "ss",
+		PerPage: "1",
+		Sort:    "id",
+		SortDir: uker.PAGINATION_ORDER_DESC,
 	}
+
+	// Call the Paginate function
+	paginationResult := noPaginateParams.Paginate(db, "test_products", "state != 0", &result)
 
 	// Check if the pagination result is not nil
 	if paginationResult == nil {
@@ -278,19 +275,11 @@ func TestPaginate(t *testing.T) {
 		}
 	}
 
-	// Set query params to search
-	c.Request().URI().SetQueryString(fmt.Sprintf("%s=%s&%s=1&%s=%s&%s=%s", uker.PAGINATION_QUERY_SEARCH, "ss", uker.PAGINATION_QUERY_PERPAGE, uker.PAGINATION_QUERY_SORT, "id", uker.PAGINATION_QUERY_SORT_DIR, uker.PAGINATION_ORDER_DESC))
-
 	// test if params are working
 	var result2 []TestProduct
 
 	// Call the Paginate function
-	paginationResult2, err := uker.NewHttp("").Paginate(c, db, "test_products", "state != 2", &result2)
-
-	// Check if there is an error
-	if err != nil {
-		t.Errorf("Error: %v", err)
-	}
+	paginationResult2 := paginateParams.Paginate(db, "test_products", "state != 2", &result2)
 
 	if paginationResult2["last_page"] != 2 {
 		t.Error("Per page not working")
