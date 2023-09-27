@@ -6,14 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
 	"mime/multipart"
 	"reflect"
-	"strconv"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
-	"gorm.io/gorm"
 )
 
 // Variable to store application response sufix
@@ -33,20 +30,6 @@ type MutiformData struct {
 
 // Global interface
 type Http interface {
-	// Server data pagination
-	//
-	// @param c *fiber.Ctx: current fiber context.
-	//
-	// @param db *gorm.DB: Database pointer to perform the pagination.
-	//
-	// @param tableName string: Name of the table to paginate.
-	//
-	// @param condition string: Where condition to add to the pagination if necessary.
-	//
-	// @param result interface{}: Interface of wantend result.
-	//
-	// @return (fiber.Map, error): map with all paginated data & error if exists
-	Paginate(c *fiber.Ctx, db *gorm.DB, tableName string, condition string, result interface{}) (fiber.Map, error)
 
 	// Create a fiber response as json string
 	//
@@ -106,82 +89,6 @@ func NewHttp(appResponseSuffix string) Http {
 
 	// return implemented local struct
 	return &http_implementation{}
-}
-
-func (h *http_implementation) Paginate(c *fiber.Ctx, db *gorm.DB, tableName string, condition string, result interface{}) (fiber.Map, error) {
-	// Build a base query without conditions
-	query := db.Table(tableName)
-
-	if condition != "" {
-		query = query.Where(condition)
-	}
-
-	// Apply search if provided
-	if search := c.Query(PAGINATION_QUERY_SEARCH); search != "" {
-		// Get the type of the result to dynamically generate search conditions
-		modelType := reflect.TypeOf(result).Elem().Elem()
-
-		// Start with an empty condition
-		searchCondition := ""
-
-		// Iterate over the fields of the model
-		for i := 0; i < modelType.NumField(); i++ {
-			fieldName := modelType.Field(i).Name
-
-			// Ignore the "id" field
-			if strings.ToLower(fieldName) == "id" {
-				continue
-			}
-
-			// Add a condition for the current field
-			if searchCondition == "" {
-				searchCondition = fieldName + " LIKE " + "'%%" + search + "%%'"
-			} else {
-				searchCondition += " OR " + fieldName + " LIKE " + "'%%" + search + "%%'"
-			}
-		}
-
-		// Combine the search condition with the existing condition using "AND"
-		query = query.Where(searchCondition)
-	}
-
-	// Apply sorting if provided
-	if sort := c.Query(PAGINATION_QUERY_SORT); sort != "" {
-		if sortDir := c.Query(PAGINATION_QUERY_SORT_DIR, PAGINATION_ORDER_ASC); sortDir == PAGINATION_ORDER_DESC {
-			query = query.Order(fmt.Sprintf("%s %s", sort, strings.ToUpper(PAGINATION_ORDER_DESC)))
-		} else {
-			query = query.Order(sort)
-		}
-	}
-
-	// Convert URL parameters to integers
-	page, err1 := strconv.Atoi(c.Query(PAGINATION_QUERY_PAGE, "1"))
-	perPage, err2 := strconv.Atoi(c.Query(PAGINATION_QUERY_PERPAGE, "10"))
-
-	if err1 != nil || err2 != nil {
-		return nil, h.EndOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_BAD_REQUEST, nil)
-	}
-
-	// Perform the query and count the total records
-	var total int64
-	query.Count(&total)
-
-	// Calculate the number of pages and adjust the requested page if necessary
-	lastPage := int(math.Ceil(float64(total) / float64(perPage)))
-	if page > lastPage {
-		page = lastPage
-	}
-
-	// Perform pagination
-	query.Limit(perPage).Offset((page - 1) * perPage).Find(result)
-
-	return fiber.Map{
-		"page":      page,
-		"total":     total,
-		"per_page":  perPage,
-		"last_page": lastPage,
-		"data":      result,
-	}, nil
 }
 
 func (h *http_implementation) EndOutPut(c *fiber.Ctx, resCode int, message string, extraValues map[string]string) error {
