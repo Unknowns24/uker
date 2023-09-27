@@ -25,17 +25,17 @@ message LicenseRenewRes {
     bool success = 1;
 }
 
-message LicenseRefoundReq {
+message LicenseRefundReq {
     uint64 appId = 1;
     string license = 2;
 }
 
-message LicenseRefoundRes {
+message LicenseRefundRes {
     bool success = 1;
 }
 
 service LicenseService {
     rpc LicenseRenew(LicenseRenewReq) returns (LicenseRenewRes);
-    rpc LicenseRefound(LicenseRefoundReq) returns (LicenseRefoundRes);
+    rpc LicenseRefund(LicenseRefundReq) returns (LicenseRefundRes);
     rpc LicensePurchase(LicensePurchaseReq) returns (LicensePurchaseRes);
 }

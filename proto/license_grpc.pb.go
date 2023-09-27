@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v3.20.2
-// source: src/proto/license.proto
+// source: proto/license.proto
 
 package proto
 
@@ -23,7 +23,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type LicenseServiceClient interface {
 	LicenseRenew(ctx context.Context, in *LicenseRenewReq, opts ...grpc.CallOption) (*LicenseRenewRes, error)
-	LicenseRefound(ctx context.Context, in *LicenseRefoundReq, opts ...grpc.CallOption) (*LicenseRefoundRes, error)
+	LicenseRefund(ctx context.Context, in *LicenseRefundReq, opts ...grpc.CallOption) (*LicenseRefundRes, error)
 	LicensePurchase(ctx context.Context, in *LicensePurchaseReq, opts ...grpc.CallOption) (*LicensePurchaseRes, error)
 }
 
@@ -44,9 +44,9 @@ func (c *licenseServiceClient) LicenseRenew(ctx context.Context, in *LicenseRene
 	return out, nil
 }
 
-func (c *licenseServiceClient) LicenseRefound(ctx context.Context, in *LicenseRefoundReq, opts ...grpc.CallOption) (*LicenseRefoundRes, error) {
-	out := new(LicenseRefoundRes)
-	err := c.cc.Invoke(ctx, "/grpc.LicenseService/LicenseRefound", in, out, opts...)
+func (c *licenseServiceClient) LicenseRefund(ctx context.Context, in *LicenseRefundReq, opts ...grpc.CallOption) (*LicenseRefundRes, error) {
+	out := new(LicenseRefundRes)
+	err := c.cc.Invoke(ctx, "/grpc.LicenseService/LicenseRefund", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func (c *licenseServiceClient) LicensePurchase(ctx context.Context, in *LicenseP
 // for forward compatibility
 type LicenseServiceServer interface {
 	LicenseRenew(context.Context, *LicenseRenewReq) (*LicenseRenewRes, error)
-	LicenseRefound(context.Context, *LicenseRefoundReq) (*LicenseRefoundRes, error)
+	LicenseRefund(context.Context, *LicenseRefundReq) (*LicenseRefundRes, error)
 	LicensePurchase(context.Context, *LicensePurchaseReq) (*LicensePurchaseRes, error)
 	mustEmbedUnimplementedLicenseServiceServer()
 }
@@ -79,8 +79,8 @@ type UnimplementedLicenseServiceServer struct {
 func (UnimplementedLicenseServiceServer) LicenseRenew(context.Context, *LicenseRenewReq) (*LicenseRenewRes, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LicenseRenew not implemented")
 }
-func (UnimplementedLicenseServiceServer) LicenseRefound(context.Context, *LicenseRefoundReq) (*LicenseRefoundRes, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method LicenseRefound not implemented")
+func (UnimplementedLicenseServiceServer) LicenseRefund(context.Context, *LicenseRefundReq) (*LicenseRefundRes, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method LicenseRefund not implemented")
 }
 func (UnimplementedLicenseServiceServer) LicensePurchase(context.Context, *LicensePurchaseReq) (*LicensePurchaseRes, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LicensePurchase not implemented")
@@ -116,20 +116,20 @@ func _LicenseService_LicenseRenew_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _LicenseService_LicenseRefound_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(LicenseRefoundReq)
+func _LicenseService_LicenseRefund_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LicenseRefundReq)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(LicenseServiceServer).LicenseRefound(ctx, in)
+		return srv.(LicenseServiceServer).LicenseRefund(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/grpc.LicenseService/LicenseRefound",
+		FullMethod: "/grpc.LicenseService/LicenseRefund",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(LicenseServiceServer).LicenseRefound(ctx, req.(*LicenseRefoundReq))
+		return srv.(LicenseServiceServer).LicenseRefund(ctx, req.(*LicenseRefundReq))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -164,8 +164,8 @@ var LicenseService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _LicenseService_LicenseRenew_Handler,
 		},
 		{
-			MethodName: "LicenseRefound",
-			Handler:    _LicenseService_LicenseRefound_Handler,
+			MethodName: "LicenseRefund",
+			Handler:    _LicenseService_LicenseRefund_Handler,
 		},
 		{
 			MethodName: "LicensePurchase",
@@ -173,5 +173,5 @@ var LicenseService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "src/proto/license.proto",
+	Metadata: "proto/license.proto",
 }
