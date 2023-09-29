@@ -13,6 +13,8 @@ Uker (Utility Kernel) is a Go package that provides a set of utilities to simpli
     -   [HTTP Interface](#http-interface)
     -   [Middlewares Interface](#middlewares-interface)
     -   [MySQL Interface](#mysql-interface)
+    -   [Logger Interface](#todo)
+    -   [Pagination Interface](#todo)
 
 ## Installation
 
