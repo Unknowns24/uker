@@ -36,33 +36,6 @@ Import the package and start using the utility functions and interfaces in your 
 
 ## Interfaces
 
-### gRPC Interface
-
-The gRPC interface provides utilities for creating gRPC clients and servers.
-
-#### CreateClient
-
-Create a gRPC client connection.
-
-```go
-func CreateClient(dialData GrpcConnData) (*grpcp.ClientConn, error)
-```
-
--   `dialData GrpcConnData`: Information needed to establish the client connection.
--   Returns `(*grpcp.ClientConn, error)`: The established connection with the server and an error if one occurs.
-
-#### CreateServer
-
-Create a gRPC server.
-
-```go
-func CreateServer(wg *sync.WaitGroup, sData GrpcServerData) *grpcp.Server
-```
-
--   `wg *sync.WaitGroup`: WaitGroup to add the server routine.
--   `sData GrpcServerData`: Struct with necessary data to set up the gRPC server.
--   Returns `*grpcp.Server`: A created and running gRPC.Server pointer.
-
 ### HTTP Interface
 
 The HTTP interface provides utilities for working with HTTP requests and responses, including pagination and body parsing.
