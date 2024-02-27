@@ -74,7 +74,7 @@ func TestMultiPartFormParser(t *testing.T) {
 	values["data"] = &data
 
 	// Call the MultiPartFormParser function
-	files, err := uker.NewHttp("").MultiPartFormParser(c, values, []string{"file1", "file2"})
+	files, err := uker.NewHttp().MultiPartFormParser(c, values, []string{"file1", "file2"})
 	if err != nil {
 		t.Errorf("Error: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestBodyParser(t *testing.T) {
 	data := testStruct{}
 
 	// Call the BodyParser function
-	err = uker.NewHttp("").BodyParser(c, &data)
+	err = uker.NewHttp().BodyParser(c, &data)
 	if err != nil {
 		t.Errorf("Error: %v", err)
 	}
@@ -161,7 +161,7 @@ func TestEndOutPut(t *testing.T) {
 	c := app.AcquireCtx(&fasthttp.RequestCtx{})
 
 	// Call the endOutPut function with test values
-	err := uker.NewHttp("").EndOutPut(c, fiber.StatusOK, testMsg, map[string]string{"key1": "value1", "key2": "value2"})
+	err := uker.NewHttp().EndOutPut(c, fiber.StatusOK, testMsg, map[string]string{"key1": "value1", "key2": "value2"})
 
 	// Check for an error
 	if err != nil {
@@ -247,7 +247,7 @@ func TestExtractReqPaginationParameters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := uker.NewHttp("").ExtractReqPaginationParameters(tt.args.c); !reflect.DeepEqual(got, tt.want) {
+			if got := uker.NewHttp().ExtractReqPaginationParameters(tt.args.c); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ExtractReqPaginationParameters() = %v, want %v", got, tt.want)
 			}
 		})

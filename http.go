@@ -13,9 +13,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// Variable to store application response sufix
-var appSuffix string
-
 // helper struct
 type response struct {
 	Code int               `json:"code"`
@@ -90,10 +87,7 @@ type Http interface {
 type http_implementation struct{}
 
 // External contructor
-func NewHttp(appResponseSuffix string) Http {
-	// Make app suffix local to access it from EndOutPut
-	appSuffix = appResponseSuffix
-
+func NewHttp() Http {
 	// return implemented local struct
 	return &http_implementation{}
 }
@@ -258,7 +252,7 @@ func endOutPut(c *fiber.Ctx, resCode int, message string, extraValues map[string
 	}
 
 	// Add message to the map
-	extraValues[REQUEST_KEY_MESSAGE] = fmt.Sprintf("%s%s", message, appSuffix)
+	extraValues[REQUEST_KEY_MESSAGE] = message
 
 	// Encode response as json
 	jsonData, _ := json.Marshal(response{Data: extraValues, Code: resCode})
