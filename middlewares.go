@@ -1,13 +1,11 @@
 package uker
 
 import (
-	"context"
 	"strconv"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v4"
-	"github.com/unknowns24/uker/proto"
 )
 
 // variable to store jwt key
@@ -30,24 +28,6 @@ type Middlewares interface {
 	//
 	// @return error: error on authentication
 	IsAuthenticated(c *fiber.Ctx) error
-
-	// Middleware to validate if user has required permissions
-	//
-	// @param authService proto.AuthServiceClient: authService with stablished connection to make the request.
-	//
-	// @param permissions []string: Array with the required permissions that user needs to have.
-	//
-	// @return func(c *fiber.Ctx) error: fiber middleware function to use on the
-	HasPermissions(authService proto.AuthServiceClient, permissions []string) func(c *fiber.Ctx) error
-
-	// Middleware to validate if user has at least one of the required permissions
-	//
-	// @param authService proto.AuthServiceClient: authService with stablished connection to make the request.
-	//
-	// @param permissions []string: Array with the required permissions that user needs to have.
-	//
-	// @return func(c *fiber.Ctx) error: fiber middleware function to use on the
-	HasAtLeastOnePermission(authService proto.AuthServiceClient, permissions []string) func(c *fiber.Ctx) error
 }
 
 // Local struct to be implmented
@@ -101,70 +81,4 @@ func (m *middlewares_implementation) GenerateJWT(id uint, keeplogin bool) (strin
 	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, payload).SignedString([]byte(jwt_key))
 
 	return token, err
-}
-
-func (m *middlewares_implementation) HasPermissions(authService proto.AuthServiceClient, permissions []string) func(c *fiber.Ctx) error {
-	return func(c *fiber.Ctx) error {
-		// Get userId from context
-		userId := c.Context().UserValue(CONTEXT_VALUE_USERID).(uint)
-
-		if userId == 0 {
-			return endOutPut(c, fiber.StatusUnauthorized, ERROR_MIDDLEWARE_NO_AUTHENTICATED_USER, nil)
-		}
-
-		// Validate if user have every permission
-		for _, perm := range permissions {
-			havePermRes, err := authService.HavePermission(context.Background(), &proto.HavePermReq{
-				UserId:     uint64(userId),
-				Permission: perm,
-			})
-
-			//TODO: check the way HavePermissions return error
-			if err != nil {
-				return c.SendString(err.Error())
-			}
-
-			// Store perm value
-			c.Context().SetUserValue(perm, havePermRes.HavePermission)
-
-			if !havePermRes.HavePermission {
-				return endOutPut(c, fiber.StatusForbidden, ERROR_MIDDLEWARE_INSUFFICIENT_PERMISSIONS, nil)
-			}
-		}
-
-		return c.Next()
-	}
-}
-
-func (m *middlewares_implementation) HasAtLeastOnePermission(authService proto.AuthServiceClient, permissions []string) func(c *fiber.Ctx) error {
-	return func(c *fiber.Ctx) error {
-		// Get userId from context
-		userId := c.Context().UserValue(CONTEXT_VALUE_USERID).(uint)
-
-		if userId == 0 {
-			return endOutPut(c, fiber.StatusUnauthorized, ERROR_MIDDLEWARE_NO_AUTHENTICATED_USER, nil)
-		}
-
-		// Validate if user have at least one permission
-		for _, perm := range permissions {
-			havePermRes, err := authService.HavePermission(context.Background(), &proto.HavePermReq{
-				UserId:     uint64(userId),
-				Permission: perm,
-			})
-
-			//TODO: check the way HavePermissions return error
-			if err != nil {
-				return c.SendString(err.Error())
-			}
-
-			// Store perm value
-			c.Context().SetUserValue(perm, havePermRes.HavePermission)
-
-			if havePermRes.HavePermission {
-				return c.Next()
-			}
-		}
-
-		return endOutPut(c, fiber.StatusForbidden, ERROR_MIDDLEWARE_INSUFFICIENT_PERMISSIONS, nil)
-	}
 }
