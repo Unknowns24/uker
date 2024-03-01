@@ -13,6 +13,14 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+// Expect data encoded
+var base64EncodedBody bool
+
+// New http struct config
+type NewHttpParameters struct {
+	EncodeBody bool
+}
+
 // helper struct
 type response struct {
 	Code int               `json:"code"`
@@ -27,7 +35,6 @@ type MutiformData struct {
 
 // Global interface
 type Http interface {
-
 	// Create a fiber response as json string
 	//
 	// @param c *fiber.Ctx: Current fiber context.
@@ -87,7 +94,9 @@ type Http interface {
 type http_implementation struct{}
 
 // External contructor
-func NewHttp() Http {
+func NewHttp(params *NewHttpParameters) Http {
+	base64EncodedBody = params.EncodeBody
+
 	// return implemented local struct
 	return &http_implementation{}
 }
@@ -114,22 +123,34 @@ func (h *http_implementation) BodyParser(c *fiber.Ctx, requestInterface interfac
 		return h.EndOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_MISSING_DATA, nil)
 	}
 
-	// Decode the value of the 'data' field from base64
-	decoded, err := base64.StdEncoding.DecodeString(bodyData[REQUEST_KEY_DATA])
+	if base64EncodedBody {
+		// Decode the value of the 'data' field from base64
+		decoded, err := base64.StdEncoding.DecodeString(bodyData[REQUEST_KEY_DATA])
 
-	// Check if there was an error while decoding the base64
-	if err != nil {
-		return h.EndOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_INVALID_BASE64, nil)
-	}
+		// Check if there was an error while decoding the base64
+		if err != nil {
+			return h.EndOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_INVALID_BASE64, nil)
+		}
 
-	// Parse the JSON encoded in base64
-	if err := json.Unmarshal([]byte(string(decoded)), &requestInterface); err != nil {
-		return h.EndOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_BAD_REQUEST, nil)
-	}
+		// Parse the JSON encoded in base64
+		if err := json.Unmarshal([]byte(string(decoded)), &requestInterface); err != nil {
+			return h.EndOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_BAD_REQUEST, nil)
+		}
 
-	// Check if required values on valueInterface are not nil
-	if existAllRequiredParams := requiredParamsExists(requestInterface); !existAllRequiredParams {
-		return h.EndOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_MISSING_PARAMS, nil)
+		// Check if required values on valueInterface are not nil
+		if existAllRequiredParams := requiredParamsExists(requestInterface); !existAllRequiredParams {
+			return h.EndOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_MISSING_PARAMS, nil)
+		}
+	} else {
+		// Parse the JSON inside data
+		if err := json.Unmarshal([]byte(bodyData[REQUEST_KEY_DATA]), &requestInterface); err != nil {
+			return h.EndOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_BAD_REQUEST, nil)
+		}
+
+		// Check if required values on valueInterface are not nil
+		if existAllRequiredParams := requiredParamsExists(requestInterface); !existAllRequiredParams {
+			return h.EndOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_MISSING_PARAMS, nil)
+		}
 	}
 
 	return nil
