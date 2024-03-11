@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net/http"
 	"reflect"
 	"strings"
-
-	"github.com/gofiber/fiber/v2"
 )
 
 // helper struct
@@ -30,7 +30,7 @@ type Http interface {
 
 	// Create a fiber response as json string
 	//
-	// @param c *fiber.Ctx: Current fiber context.
+	// @param w http.ResponseWriter Current fiber context.
 	//
 	// @param resCode int: Http response code.
 	//
@@ -39,7 +39,7 @@ type Http interface {
 	// @param extraValues map[string]string: map with all extras key, value that response need to return.
 	//
 	// @return error: return fiber response
-	EndOutPut(c *fiber.Ctx, resCode int, message string, extraValues map[string]string) error
+	FinalOutPut(w http.ResponseWriter, resCode int, message string, extraValues map[string]string)
 
 	// Parse request body data
 	//
@@ -48,7 +48,7 @@ type Http interface {
 	// @param requestInterface *interface{}: Interface pointer where parsed data will be stored.
 	//
 	// @return error: error if exists
-	BodyParser(c *fiber.Ctx, requestInterface interface{}) error
+	BodyParser(w http.ResponseWriter, r *http.Request, requestInterface interface{}) error
 
 	// Multi part form parser
 	//
@@ -59,7 +59,7 @@ type Http interface {
 	// @param files []string: string slice with all files that are required of the multipart.
 	//
 	// @return (map[string][]*multipart.FileHeader, error): map with all files & error if exists
-	MultiPartFormParser(ctx *fiber.Ctx, values map[string]interface{}, files []string) (map[string][]*multipart.FileHeader, error)
+	MultiPartFormParser(w http.ResponseWriter, r *http.Request, values map[string]interface{}, files []string) (map[string][]*multipart.FileHeader, error)
 
 	// Multi part file parser
 	//
@@ -80,23 +80,27 @@ type Http interface {
 	// @param c *fiber.Ctx: fiber request context
 	//
 	// @return Pagination: Pagination struct with all request params
-	ExtractReqPaginationParameters(c *fiber.Ctx) Pagination
+	ExtractReqPaginationParameters(r *http.Request) Pagination
 }
 
 // Local struct to be implmented
-type http_implementation struct{}
+type http_implementation struct {
+	Base64Data bool
+}
 
 // External contructor
-func NewHttp() Http {
+func NewHttp(encodedData bool) Http {
 	// return implemented local struct
-	return &http_implementation{}
+	return &http_implementation{
+		Base64Data: encodedData,
+	}
 }
 
-func (h *http_implementation) EndOutPut(c *fiber.Ctx, resCode int, message string, extraValues map[string]string) error {
-	return endOutPut(c, resCode, message, extraValues)
+func (h *http_implementation) FinalOutPut(w http.ResponseWriter, resCode int, message string, extraValues map[string]string) {
+	finalOutPut(w, resCode, message, extraValues)
 }
 
-func (h *http_implementation) BodyParser(c *fiber.Ctx, requestInterface interface{}) error {
+func (h *http_implementation) BodyParser(w http.ResponseWriter, r *http.Request, requestInterface interface{}) error {
 	// Validate if requestInterface is a pointer
 	if reflect.ValueOf(requestInterface).Kind() != reflect.Ptr {
 		panic(fmt.Errorf("expected %s as requestInterface, %s received", reflect.Ptr, reflect.ValueOf(requestInterface).Kind()))
@@ -104,91 +108,81 @@ func (h *http_implementation) BodyParser(c *fiber.Ctx, requestInterface interfac
 
 	var bodyData map[string]string
 
-	// Parse the content sent in the body
-	if err := c.BodyParser(&bodyData); err != nil {
-		return h.EndOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_INVALID_JSON, nil)
-	}
-
-	// Check if the 'data' field exists within the JSON in the body
-	if bodyData[REQUEST_KEY_DATA] == "" {
-		return h.EndOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_MISSING_DATA, nil)
-	}
-
-	// Decode the value of the 'data' field from base64
-	decoded, err := base64.StdEncoding.DecodeString(bodyData[REQUEST_KEY_DATA])
-
-	// Check if there was an error while decoding the base64
+	// Read the body of the HTTP Request
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		return h.EndOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_INVALID_BASE64, nil)
+		return errors.New(ERROR_HTTP_BAD_REQUEST)
 	}
 
 	// Parse the JSON encoded in base64
-	if err := json.Unmarshal([]byte(string(decoded)), &requestInterface); err != nil {
-		return h.EndOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_BAD_REQUEST, nil)
+	if err := json.Unmarshal(body, &bodyData); err != nil {
+		return errors.New(ERROR_HTTP_BAD_REQUEST)
+	}
+
+	dataContent, err := decodeDataIfEncoded(bodyData["data"], h.Base64Data)
+	if err != nil {
+		return err
+	}
+
+	// Parse the JSON encoded in base64
+	if err := json.Unmarshal([]byte(dataContent), &requestInterface); err != nil {
+		return errors.New(ERROR_HTTP_MALFORMED_DATA)
 	}
 
 	// Check if required values on valueInterface are not nil
 	if existAllRequiredParams := requiredParamsExists(requestInterface); !existAllRequiredParams {
-		return h.EndOutPut(c, fiber.StatusBadRequest, ERROR_HTTP_MISSING_PARAMS, nil)
+		return errors.New(ERROR_HTTP_MISSING_PARAMS)
 	}
 
 	return nil
 }
 
-func (h *http_implementation) MultiPartFormParser(ctx *fiber.Ctx, values map[string]interface{}, files []string) (map[string][]*multipart.FileHeader, error) {
-	// Get MultiparForm pointer
-	MultipartForm, err := ctx.MultipartForm()
+func (h *http_implementation) MultiPartFormParser(w http.ResponseWriter, r *http.Request, values map[string]interface{}, files []string) (map[string][]*multipart.FileHeader, error) {
+	err := r.ParseMultipartForm(10 << 20) // 10MB max
 	if err != nil {
-		return nil, h.EndOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_MULTIPARTFORM_INVALID_FORM, nil)
+		return nil, fmt.Errorf("error parsing multipart form: %v", err)
 	}
 
 	// Parse every requested value on the values map
 	for value, valueInterface := range values {
 		if reflect.ValueOf(valueInterface).Kind() != reflect.Ptr {
-			panic(fmt.Errorf("expected %s as value interface, %s received", reflect.Ptr, reflect.ValueOf(valueInterface).Kind()))
+			return nil, fmt.Errorf("expected %s as value interface, %s received", reflect.Ptr, reflect.ValueOf(valueInterface).Kind())
 		}
 
 		// Get requested FormValue value if exists inside of the multiform
-		valueData := ctx.FormValue(value, "")
+		valueData := r.FormValue(value)
 
-		// Check if field exists
-		if valueData == "" {
-			return nil, h.EndOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_BAD_REQUEST, nil)
-		}
-
-		// Decoding base64 multiform value data
-		decoded, err := base64.StdEncoding.DecodeString(valueData)
-
-		// Check if error happens on base64 decoding
+		dataContent, err := decodeDataIfEncoded(valueData, h.Base64Data)
 		if err != nil {
-			return nil, h.EndOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_INVALID_BASE64, nil)
+			return nil, err
 		}
 
 		// Parse decoded json string to the specified interface
-		if err := json.Unmarshal(decoded, &valueInterface); err != nil {
-			return nil, h.EndOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_INVALID_JSON, nil)
+		if err := json.Unmarshal([]byte(dataContent), valueInterface); err != nil {
+			return nil, fmt.Errorf("error unmarshalling JSON: %v", err)
 		}
 
 		// Check if required values on valueInterface are not nil
 		if existAllRequiredParams := requiredParamsExists(valueInterface); !existAllRequiredParams {
-			return nil, h.EndOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_MISSING_PARAMS, nil)
+			return nil, fmt.Errorf("missing required parameters in valueInterface")
 		}
 	}
 
 	// Map with all requested files that will be returned
-	ParsedFiles := map[string][]*multipart.FileHeader{}
+	parsedFiles := map[string][]*multipart.FileHeader{}
 
 	// Parse every requested file on the Files string slice
 	for _, file := range files {
-		if MultipartFormFile := MultipartForm.File[file]; MultipartFormFile != nil {
-			ParsedFiles[file] = MultipartFormFile
+		MultipartFormFileHeaders := r.MultipartForm.File[file]
+		if MultipartFormFileHeaders != nil {
+			parsedFiles[file] = MultipartFormFileHeaders
 			continue
 		}
 
-		return nil, h.EndOutPut(ctx, fiber.StatusBadRequest, ERROR_HTTP_MULTIPARTFORM_MISSING_FILES, nil)
+		return nil, fmt.Errorf("missing file for key %s", file)
 	}
 
-	return ParsedFiles, nil
+	return parsedFiles, nil
 }
 
 func (h *http_implementation) MultiPartFileToBuff(files []*multipart.FileHeader) [][]byte {
@@ -234,18 +228,32 @@ func (h *http_implementation) FirstMultiPartFileToBuff(files []*multipart.FileHe
 	return fileBuff, nil
 }
 
-func (h *http_implementation) ExtractReqPaginationParameters(c *fiber.Ctx) Pagination {
-	return Pagination{
-		Search:  c.Query(PAGINATION_QUERY_SEARCH),
-		Sort:    c.Query(PAGINATION_QUERY_SORT),
-		SortDir: c.Query(PAGINATION_QUERY_SORT_DIR, PAGINATION_ORDER_ASC),
-		Page:    c.Query(PAGINATION_QUERY_PAGE, "1"),
-		PerPage: c.Query(PAGINATION_QUERY_PERPAGE, "10"),
+func (h *http_implementation) ExtractReqPaginationParameters(r *http.Request) Pagination {
+	queryParams := r.URL.Query()
+	pagination := Pagination{
+		Search:  queryParams.Get(PAGINATION_QUERY_SEARCH),
+		Sort:    queryParams.Get(PAGINATION_QUERY_SORT),
+		SortDir: queryParams.Get(PAGINATION_QUERY_SORT_DIR),
+		Page:    queryParams.Get(PAGINATION_QUERY_PAGE),
+		PerPage: queryParams.Get(PAGINATION_QUERY_PERPAGE),
 	}
+
+	// Si los valores por defecto no están definidos, asigna los valores por defecto
+	if pagination.SortDir == "" {
+		pagination.SortDir = PAGINATION_ORDER_ASC
+	}
+	if pagination.Page == "" {
+		pagination.Page = "1"
+	}
+	if pagination.PerPage == "" {
+		pagination.PerPage = "10"
+	}
+
+	return pagination
 }
 
 // Declaring this local function tu use on all utility files
-func endOutPut(c *fiber.Ctx, resCode int, message string, extraValues map[string]string) error {
+func finalOutPut(w http.ResponseWriter, resCode int, message string, extraValues map[string]string) {
 	// if extra values is nil -> set it as an empty map[string]string
 	if extraValues == nil {
 		extraValues = map[string]string{}
@@ -258,7 +266,8 @@ func endOutPut(c *fiber.Ctx, resCode int, message string, extraValues map[string
 	jsonData, _ := json.Marshal(response{Data: extraValues, Code: resCode})
 
 	// return error or success code
-	return c.Status(resCode).SendString(string(jsonData))
+	w.WriteHeader(resCode)
+	w.Write([]byte(string(jsonData)))
 }
 
 func requiredParamsExists(x interface{}) bool {
@@ -277,4 +286,27 @@ func requiredParamsExists(x interface{}) bool {
 	}
 
 	return true
+}
+
+func decodeDataIfEncoded(data string, encoded bool) (string, error) {
+	// Check if the 'data' field exists within the JSON in the body
+	if data == "" {
+		return "", errors.New(ERROR_HTTP_MISSING_DATA)
+	}
+
+	dataContent := data
+
+	if encoded {
+		// Decode the value of the 'data' field from base64
+		decoded, err := base64.StdEncoding.DecodeString(dataContent)
+
+		// Check if there was an error while decoding the base64
+		if err != nil {
+			return "", errors.New(ERROR_HTTP_INVALID_BASE64)
+		}
+
+		dataContent = string(decoded)
+	}
+
+	return dataContent, nil
 }

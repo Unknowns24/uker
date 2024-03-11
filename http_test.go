@@ -4,14 +4,14 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/unknowns24/uker"
-	"github.com/valyala/fasthttp"
 )
 
 type testStruct struct {
@@ -22,76 +22,78 @@ type testStruct struct {
 }
 
 func TestMultiPartFormParser(t *testing.T) {
-	// Create a test structure
+	// Crear una estructura de prueba
 	test := testStruct{
 		Param1: "value1",
 		Param2: "value2",
 	}
 
-	// Marshal the test structure to JSON
+	// Codificar la estructura de prueba a JSON
 	testJson, err := json.Marshal(test)
 	if err != nil {
 		t.Errorf("Error: %v", err)
 	}
 
-	// Create a simulated fasthttp.RequestCtx object
-	ctx := &fasthttp.RequestCtx{}
-
-	// Create a simulated multipart form body
+	// Crear un objeto bytes.Buffer para almacenar el cuerpo de la solicitud
 	body := &bytes.Buffer{}
+
+	// Crear un objeto multipart.Writer para escribir en el cuerpo de la solicitud
 	writer := multipart.NewWriter(body)
 
-	// Encode the testJson string in base64
+	// Codificar el JSON de prueba en base64
 	testBase64 := base64.StdEncoding.EncodeToString(testJson)
 
-	// Add a "data" field with values
+	// Agregar un campo "data" con los valores
 	writer.WriteField("data", testBase64)
 
-	// Add a simulated file
+	// Agregar un archivo simulado
 	fileWriter, _ := writer.CreateFormFile("file1", "example.txt")
 	fileWriter.Write([]byte("simulated file content"))
 
-	// Finalize the multipart form
+	// Finalizar el formulario multipart
 	writer.Close()
 
-	// Set the body of the context with the simulated form
-	ctx.Request.SetBody(body.Bytes())
-	ctx.Request.Header.SetContentType(writer.FormDataContentType())
+	// Crear una solicitud HTTP con el cuerpo simulado
+	req, err := http.NewRequest("POST", "/", body)
+	if err != nil {
+		t.Errorf("Error creando la solicitud HTTP: %v", err)
+	}
 
-	// Create a Fiber app
-	app := fiber.New()
+	// Establecer el encabezado de contenido en el tipo de contenido del formulario multipart
+	req.Header.Set("Content-Type", writer.FormDataContentType())
 
-	// Acquire the request context into the Fiber app
-	c := app.AcquireCtx(ctx)
-
-	// Create a new map with string (value to search in the multipart form) as keys and interface (where the decoded value will be stored) as values
+	// Crear un objeto map[string]interface{} para almacenar los valores decodificados
 	values := make(map[string]interface{})
 
-	// Create an empty test structure where the final value will be stored
+	// Crear una estructura de prueba vacía donde se almacenará el valor final
 	data := testStruct{}
 
-	// Add the "data" key to the values map
+	// Agregar la clave "data" al mapa de valores
 	values["data"] = &data
 
-	// Call the MultiPartFormParser function
-	files, err := uker.NewHttp().MultiPartFormParser(c, values, []string{"file1", "file2"})
+	// Crear un objeto http.ResponseWriter para capturar la salida
+	// de la función MultiPartFormParser
+	res := httptest.NewRecorder()
+
+	// Llamar a la función MultiPartFormParser
+	files, err := uker.NewHttp(true).MultiPartFormParser(res, req, values, []string{"file1"})
 	if err != nil {
-		t.Errorf("Error: %v", err)
+		t.Errorf("Error en la función MultiPartFormParser: %v", err)
 	}
 
-	// Verify that the testStruct was filled correctly
+	// Verificar que la estructura de prueba se haya llenado correctamente
 	if data.Param1 != "value1" {
-		t.Errorf("Expected Param1 to be 'value1', got '%s'", data.Param1)
+		t.Errorf("Se esperaba que Param1 fuera 'value1', se obtuvo '%s'", data.Param1)
 	}
 
-	// Verify that the files were processed correctly (simulated)
-	if len(files["file1"]) != 0 || len(files["file2"]) != 0 {
-		t.Errorf("Expected files, got no files")
+	// Verificar que los archivos se hayan procesado correctamente (simulados)
+	if len(files["file1"]) == 0 {
+		t.Errorf("Se esperaban archivos, no se obtuvieron archivos")
 	}
 }
 
 func TestBodyParser(t *testing.T) {
-	// Create a test structure
+	// Crear una estructura de prueba
 	test := testStruct{
 		Param1: "value1",
 		Param2: "value2",
@@ -99,155 +101,151 @@ func TestBodyParser(t *testing.T) {
 		Param4: false,
 	}
 
-	// Marshal the test structure to JSON
+	// Marshalizar la estructura de prueba a JSON
 	testJson, err := json.Marshal(test)
 	if err != nil {
 		t.Errorf("Error: %v", err)
 	}
 
-	// Encode the testJson string in base64
+	// Codificar la cadena JSON de prueba en base64
 	testBase64 := base64.StdEncoding.EncodeToString(testJson)
 
-	// Create a test body with a "data" field that has the base64 encoded testJson
+	// Crear un cuerpo de prueba con un campo "data" que tenga el JSON codificado en base64
 	testBody := map[string]string{
 		"data": testBase64,
 	}
 
-	// Marshal the testBody map to JSON
+	// Marshalizar el mapa de prueba a JSON
 	bodyJson, err := json.Marshal(testBody)
 	if err != nil {
 		t.Errorf("Error: %v", err)
 	}
 
-	// Create a simulated fasthttp.RequestCtx object
-	ctx := &fasthttp.RequestCtx{}
-
-	// Set the body of the context with the simulated JSON
-	ctx.Request.SetBody([]byte(bodyJson))
-	ctx.Request.Header.SetContentType(fiber.MIMEApplicationJSON)
-
-	// Create a Fiber app
-	app := fiber.New()
-
-	// Acquire the request context into the Fiber app
-	c := app.AcquireCtx(ctx)
-
-	// Create an empty test structure to save files when decoded
-	data := testStruct{}
-
-	// Call the BodyParser function
-	err = uker.NewHttp().BodyParser(c, &data)
+	// Crear una solicitud HTTP de prueba con el cuerpo JSON
+	req, err := http.NewRequest("POST", "/", strings.NewReader(string(bodyJson)))
 	if err != nil {
-		t.Errorf("Error: %v", err)
+		t.Fatal(err)
 	}
 
-	if c.Response().StatusCode() != fiber.StatusOK {
-		t.Errorf("Error: %v", c.Response())
-	}
+	// Configurar la cabecera Content-Type
+	req.Header.Set("Content-Type", "application/json")
 
-	// Verify that the testStruct was filled correctly
-	if data.Param1 != "value1" {
-		t.Errorf("Expected Param1 to be 'value1', got '%s'", data.Param1)
+	// Crear un registrador de respuesta HTTP simulado
+	rec := httptest.NewRecorder()
+
+	// Manejar la solicitud HTTP con el BodyParser
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Crear una estructura vacía para guardar los archivos cuando se decodifiquen
+		var data testStruct
+
+		// Decodificar el cuerpo JSON de la solicitud y llenar la estructura de datos
+		err := uker.NewHttp(true).BodyParser(w, r, &data)
+		if err != nil {
+			t.Errorf("Error: %v", err)
+			return
+		}
+
+		// Verificar que la estructura de prueba se llenó correctamente
+		if data.Param1 != "value1" {
+			t.Errorf("Expected Param1 to be 'value1', got '%s'", data.Param1)
+		}
+
+		// Responder con un estado HTTP OK
+		w.WriteHeader(http.StatusOK)
+	})
+
+	// Servir la solicitud HTTP
+	handler.ServeHTTP(rec, req)
+
+	// Verificar el código de estado de la respuesta
+	if status := rec.Code; status != http.StatusOK {
+		t.Errorf("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
 	}
 }
 
-func TestEndOutPut(t *testing.T) {
+func TestFinalOutPut(t *testing.T) {
 	const testMsg = "TEST"
 
-	// Create a Fiber app
-	app := fiber.New()
+	// Crear un objeto http.ResponseWriter para capturar la salida
+	res := httptest.NewRecorder()
 
-	// Create a simulated Fiber context
-	c := app.AcquireCtx(&fasthttp.RequestCtx{})
+	// Llamar a la función FinalOutPut con valores de prueba
+	uker.NewHttp(true).FinalOutPut(res, http.StatusOK, testMsg, map[string]string{"key1": "value1", "key2": "value2"})
 
-	// Call the endOutPut function with test values
-	err := uker.NewHttp().EndOutPut(c, fiber.StatusOK, testMsg, map[string]string{"key1": "value1", "key2": "value2"})
-
-	// Check for an error
-	if err != nil {
-		t.Errorf("Error in endOutPut function: %v", err)
+	// Verificar el código de estado de la respuesta
+	if res.Code != http.StatusOK {
+		t.Errorf("Código de estado de respuesta incorrecto. Se esperaba %d, pero se obtuvo %d", http.StatusOK, res.Code)
 	}
 
-	// Check the response status code
-	if c.Context().Response.StatusCode() != fiber.StatusOK {
-		t.Errorf("Incorrect response status code. Expected %d, but got %d", fiber.StatusOK, c.Context().Response.StatusCode())
-	}
-
-	// Decode the JSON response
+	// Decodificar la respuesta JSON
 	var baseResponse map[string]interface{}
-	if err := json.Unmarshal(c.Context().Response.Body(), &baseResponse); err != nil {
-		t.Errorf("Error decoding the base response to JSON: %v", err)
+	if err := json.Unmarshal(res.Body.Bytes(), &baseResponse); err != nil {
+		t.Errorf("Error decodificando la respuesta base a JSON: %v", err)
 	}
 
+	// Decodificar la sección de datos de la respuesta JSON
 	encodedData, err := json.Marshal(baseResponse["data"])
 	if err != nil {
-		t.Errorf("Error encoding data to JSON: %v", err)
+		t.Errorf("Error codificando datos a JSON: %v", err)
 	}
 
 	var dataResponse map[string]string
 	if err := json.Unmarshal([]byte(encodedData), &dataResponse); err != nil {
-		t.Errorf("Error decoding the data content to JSON: %v", err)
+		t.Errorf("Error decodificando el contenido de los datos a JSON: %v", err)
 	}
 
-	// Verify the response content
+	// Verificar el contenido de la respuesta
 	if dataResponse["message"] != testMsg {
-		t.Errorf("Incorrect message in the response. Expected '%s', but got '%s'", testMsg, dataResponse["message"])
+		t.Errorf("Mensaje incorrecto en la respuesta. Se esperaba '%s', pero se obtuvo '%s'", testMsg, dataResponse["message"])
 	}
 
-	// Verify other additional values if needed
+	// Verificar otros valores adicionales si es necesario
 	if dataResponse["key1"] != "value1" {
-		t.Errorf("Incorrect value for 'key1' in the response. Expected '%s', but got '%s'", "value1", dataResponse["key1"])
+		t.Errorf("Valor incorrecto para 'key1' en la respuesta. Se esperaba '%s', pero se obtuvo '%s'", "value1", dataResponse["key1"])
 	}
 
 	if dataResponse["key2"] != "value2" {
-		t.Errorf("Incorrect value for 'key2' in the response. Expected '%s', but got '%s'", "value2", dataResponse["key2"])
+		t.Errorf("Valor incorrecto para 'key2' en la respuesta. Se esperaba '%s', pero se obtuvo '%s'", "value2", dataResponse["key2"])
 	}
 }
 
 func TestExtractReqPaginationParameters(t *testing.T) {
-	type args struct {
-		c *fiber.Ctx
+	// Crear una solicitud HTTP con diferentes parámetros de consulta
+
+	fullTestReq, err := http.NewRequest("GET", "/?search=ss&page=2&sort=id&per_page=5&sort_dir=desc", nil)
+	if err != nil {
+		t.Errorf("Error creando la solicitud HTTP: %v", err)
 	}
 
-	// Create a Fiber app
-	app := fiber.New()
-
-	// Create a simulated Fiber context
-	sortTestCtx := app.AcquireCtx(&fasthttp.RequestCtx{})
-	sortTestCtx.Request().URI().SetQueryString(fmt.Sprintf("%s=%s&%s=%s", uker.PAGINATION_QUERY_SORT, "id", uker.PAGINATION_QUERY_SORT_DIR, uker.PAGINATION_ORDER_DESC))
-
-	fullTestCtx := app.AcquireCtx(&fasthttp.RequestCtx{})
-	fullTestCtx.Request().URI().SetQueryString(fmt.Sprintf("%s=%s&%s=2&%s=5&%s=%s&%s=%s", uker.PAGINATION_QUERY_SEARCH, "ss", uker.PAGINATION_QUERY_PAGE, uker.PAGINATION_QUERY_PERPAGE, uker.PAGINATION_QUERY_SORT, "id", uker.PAGINATION_QUERY_SORT_DIR, uker.PAGINATION_ORDER_DESC))
-
-	emptyCtx := app.AcquireCtx(&fasthttp.RequestCtx{})
+	emptyReq, err := http.NewRequest("GET", "/", nil)
+	if err != nil {
+		t.Errorf("Error creando la solicitud HTTP: %v", err)
+	}
 
 	tests := []struct {
 		name string
 		desc string
-		args args
+		req  *http.Request
 		want uker.Pagination
 	}{
 		{
 			name: "full test",
-			desc: "test pagination with all parameter",
-			args: args{
-				c: fullTestCtx,
-			},
+			desc: "test pagination with all parameters",
+			req:  fullTestReq,
 			want: uker.Pagination{Search: "ss", Sort: "id", SortDir: uker.PAGINATION_ORDER_DESC, Page: "2", PerPage: "5"},
 		},
 		{
 			name: "empty test",
-			desc: "test pagination with none parameter",
-			args: args{
-				c: emptyCtx,
-			},
+			desc: "test pagination with none parameters",
+			req:  emptyReq,
 			want: uker.Pagination{SortDir: uker.PAGINATION_ORDER_ASC, Page: "1", PerPage: "10"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := uker.NewHttp().ExtractReqPaginationParameters(tt.args.c); !reflect.DeepEqual(got, tt.want) {
+			got := uker.NewHttp(true).ExtractReqPaginationParameters(tt.req)
+			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ExtractReqPaginationParameters() = %v, want %v", got, tt.want)
 			}
 		})

@@ -1,5 +1,12 @@
 package uker
 
+type ContextKey string
+
+// context constants
+const (
+	CONTEXT_VALUE_USERID ContextKey = "user-id"
+)
+
 // http error constants
 const (
 	// Shared http errors
@@ -7,7 +14,8 @@ const (
 	ERROR_HTTP_MISSING_DATA   = "ERRN001"
 	ERROR_HTTP_INVALID_JSON   = "ERRN002"
 	ERROR_HTTP_INVALID_BASE64 = "ERRN003"
-	ERROR_HTTP_MISSING_PARAMS = "ERRN004"
+	ERROR_HTTP_MALFORMED_DATA = "ERRN004"
+	ERROR_HTTP_MISSING_PARAMS = "ERRN005"
 
 	// Multipart specific errors
 	ERROR_HTTP_MULTIPARTFORM_INVALID_FORM  = "ERRN010"
@@ -16,20 +24,16 @@ const (
 
 // middleware error constants
 const (
-	ERROR_MIDDLEWARE_INVALID_JWT              = "ERRN500"
-	ERROR_MIDDLEWARE_INVALID_JWT_USER         = "ERRN501"
-	ERROR_MIDDLEWARE_NO_AUTHENTICATED_USER    = "ERRN502"
-	ERROR_MIDDLEWARE_INSUFFICIENT_PERMISSIONS = "ERRN503"
+	ERROR_MIDDLEWARE_INVALID_COOKIE           = "ERRN500"
+	ERROR_MIDDLEWARE_INVALID_JWT              = "ERRN501"
+	ERROR_MIDDLEWARE_INVALID_JWT_USER         = "ERRN502"
+	ERROR_MIDDLEWARE_NO_AUTHENTICATED_USER    = "ERRN503"
+	ERROR_MIDDLEWARE_INSUFFICIENT_PERMISSIONS = "ERRN504"
 )
 
 // http header constants
 const (
 	HTTP_HEADER_NGINX_USERIP = "X-Real-IP"
-)
-
-// context constants
-const (
-	CONTEXT_VALUE_USERID = "user-id"
 )
 
 // request constants

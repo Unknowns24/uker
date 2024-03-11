@@ -1,10 +1,11 @@
 package uker
 
 import (
+	"context"
+	"net/http"
 	"strconv"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v4"
 )
 
@@ -24,10 +25,10 @@ type Middlewares interface {
 
 	// Middleware to validate if user is authenticated with a valid JWT
 	//
-	// @param c *fiber.Ctx: Current fiber context.
+	// @param next http.Handler: Current fiber context.
 	//
-	// @return error: error on authentication
-	IsAuthenticated(c *fiber.Ctx) error
+	// @return http.Handler: error on authentication
+	IsAuthenticated(next http.Handler) http.Handler
 }
 
 // Local struct to be implmented
@@ -39,34 +40,38 @@ func NewMiddlewares(jwtKey string) Middlewares {
 	return &middlewares_implementation{}
 }
 
-func (m *middlewares_implementation) IsAuthenticated(c *fiber.Ctx) error {
-	cookie := c.Cookies(JWT_COOKIE_NAME)
+func (m *middlewares_implementation) IsAuthenticated(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie(JWT_COOKIE_NAME)
+		if err != nil {
+			http.Error(w, ERROR_MIDDLEWARE_INVALID_COOKIE, http.StatusUnauthorized)
+		}
 
-	token, err := jwt.Parse(cookie, func(token *jwt.Token) (interface{}, error) {
-		return []byte(jwt_key), nil
+		token, err := jwt.Parse(cookie.Value, func(token *jwt.Token) (interface{}, error) {
+			return []byte(jwt_key), nil
+		})
+
+		if err != nil || !token.Valid {
+			http.Error(w, ERROR_MIDDLEWARE_INVALID_JWT, http.StatusUnauthorized)
+		}
+
+		claims := token.Claims.(jwt.MapClaims)
+
+		data := claims[JWT_CLAIM_KEY_DATA].(map[string]interface{})
+		ip := data[JWT_CLAIM_KEY_IP].(string)
+
+		id, err := strconv.ParseUint(claims[JWT_CLAIM_KEY_ISSUER].(string), 10, 32)
+		if err != nil {
+			http.Error(w, ERROR_MIDDLEWARE_INVALID_JWT, http.StatusUnauthorized)
+		}
+
+		if id == 0 || (ip != r.Context().Value(HTTP_HEADER_NGINX_USERIP) && ip != r.RemoteAddr) {
+			http.Error(w, ERROR_MIDDLEWARE_INVALID_JWT_USER, http.StatusUnauthorized)
+		}
+
+		ctx := context.WithValue(r.Context(), CONTEXT_VALUE_USERID, uint(id))
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
-
-	if err != nil || !token.Valid {
-		return endOutPut(c, fiber.StatusUnauthorized, ERROR_MIDDLEWARE_INVALID_JWT, nil)
-	}
-
-	claims := token.Claims.(jwt.MapClaims)
-
-	data := claims[JWT_CLAIM_KEY_DATA].(map[string]interface{})
-	ip := data[JWT_CLAIM_KEY_IP].(string)
-
-	id, err := strconv.ParseUint(claims[JWT_CLAIM_KEY_ISSUER].(string), 10, 32)
-
-	if err != nil {
-		return endOutPut(c, fiber.StatusUnauthorized, ERROR_MIDDLEWARE_INVALID_JWT, nil)
-	}
-
-	if id == 0 || (ip != c.Get(HTTP_HEADER_NGINX_USERIP, c.IP())) {
-		return endOutPut(c, fiber.StatusUnauthorized, ERROR_MIDDLEWARE_INVALID_JWT_USER, nil)
-	}
-
-	c.Context().SetUserValue(CONTEXT_VALUE_USERID, uint(id))
-	return c.Next()
 }
 
 func (m *middlewares_implementation) GenerateJWT(id uint, keeplogin bool) (string, error) {

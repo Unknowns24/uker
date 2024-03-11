@@ -5,9 +5,6 @@ import (
 	"testing"
 
 	"github.com/unknowns24/uker"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 func TestPaginate(t *testing.T) {
@@ -18,28 +15,22 @@ func TestPaginate(t *testing.T) {
 		Desc  string `json:"description"`
 	}
 
-	// Create a GORM DB instance with a SQLite driver
-	db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
-	})
-
-	if err != nil {
-		t.Fatalf("Error creating GORM DB: %v", err)
+	mock := uker.MockDB{
+		UsedInterfaces: []interface{}{
+			&TestProduct{},
+		},
+		Objects: []interface{}{
+			&TestProduct{Name: "tp1", State: 1, Desc: "ssa"},
+			&TestProduct{Name: "tp2", State: 0},
+			&TestProduct{Name: "tp3ss", State: 1},
+			&TestProduct{Name: "ss", State: 2},
+		},
 	}
 
-	// Import table
-	db.AutoMigrate(&TestProduct{})
-
-	// create test products
-	tp1 := TestProduct{Name: "tp1", State: 1, Desc: "ssa"}
-	tp2 := TestProduct{Name: "tp2", State: 0}
-	tp3 := TestProduct{Name: "tp3ss", State: 1}
-	tp4 := TestProduct{Name: "ss", State: 2}
-
-	db.Create(&tp1)
-	db.Create(&tp2)
-	db.Create(&tp3)
-	db.Create(&tp4)
+	db, err := mock.Create()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	var result []TestProduct
 
@@ -92,5 +83,10 @@ func TestPaginate(t *testing.T) {
 
 	if paginationResult2["total"] != int64(2) {
 		t.Errorf("Some clause is not working, expected total 2 -> %s received", paginationResult2["total"])
+	}
+
+	err = mock.Close()
+	if err != nil {
+		t.Error(err)
 	}
 }
