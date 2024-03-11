@@ -13,6 +13,11 @@ import (
 	"strings"
 )
 
+// New http struct config
+type NewHttpParameters struct {
+	EncodeBody bool
+}
+
 // helper struct
 type response struct {
 	Code int               `json:"code"`
@@ -27,7 +32,6 @@ type MutiformData struct {
 
 // Global interface
 type Http interface {
-
 	// Create a fiber response as json string
 	//
 	// @param w http.ResponseWriter Current fiber context.
