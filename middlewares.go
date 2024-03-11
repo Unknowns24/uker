@@ -75,16 +75,16 @@ func (m *middlewares_implementation) IsAuthenticated(next http.Handler) http.Han
 
 func (m *middlewares_implementation) GenerateJWT(id string, keeplogin bool, ipAddress string) (string, http.Cookie, error) {
 	// Generate date depending on keeplogin
-	date := jwt.NewNumericDate(time.Now().Add(time.Hour * 24)) // JWT Have 1 day of duration
+	date := time.Hour * 24 // JWT Have 1 day of duration
 
 	if keeplogin {
-		date = jwt.NewNumericDate(time.Now().Add(time.Hour * 24 * 7)) // JWT Have 1 week of duration
+		date = time.Hour * 24 * 7 // JWT Have 1 week of duration
 	}
 
 	// Creating custom claims
 	claims := jwt.MapClaims{
 		"iss": id,
-		"exp": date.Unix(),
+		"exp": jwt.NewNumericDate(time.Now().Add(date)).Unix(),
 		"data": map[string]string{
 			"ip": ipAddress,
 		},
@@ -97,8 +97,9 @@ func (m *middlewares_implementation) GenerateJWT(id string, keeplogin bool, ipAd
 
 	cookie := http.Cookie{
 		Name:     JWT_COOKIE_NAME,
+		Path:     "/",
 		Value:    token,
-		MaxAge:   int(date.Unix()),
+		MaxAge:   int(date.Abs().Seconds()),
 		HttpOnly: true,
 	}
 
