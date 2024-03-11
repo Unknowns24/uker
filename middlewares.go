@@ -3,7 +3,6 @@ package uker
 import (
 	"context"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -21,7 +20,7 @@ type Middlewares interface {
 	// @param keeplogin bool: Param to extend jwt valid time.
 	//
 	// @return (string, error): generated jwt & error if exists
-	GenerateJWT(id uint, keeplogin bool) (string, error)
+	GenerateJWT(id string, keeplogin bool) (string, error)
 
 	// Middleware to validate if user is authenticated with a valid JWT
 	//
@@ -62,25 +61,21 @@ func (m *middlewares_implementation) IsAuthenticated(next http.Handler) http.Han
 		data := claims[JWT_CLAIM_KEY_DATA].(map[string]interface{})
 		ip := data[JWT_CLAIM_KEY_IP].(string)
 
-		id, err := strconv.ParseUint(claims[JWT_CLAIM_KEY_ISSUER].(string), 10, 32)
-		if err != nil {
-			http.Error(w, ERROR_MIDDLEWARE_INVALID_JWT, http.StatusUnauthorized)
-			return
-		}
+		id := claims[JWT_CLAIM_KEY_ISSUER].(string)
 
-		if id == 0 || (ip != r.Context().Value(HTTP_HEADER_NGINX_USERIP) && ip != r.RemoteAddr) {
+		if id == "" || (ip != r.Context().Value(HTTP_HEADER_NGINX_USERIP) && ip != r.RemoteAddr) {
 			http.Error(w, ERROR_MIDDLEWARE_INVALID_JWT_USER, http.StatusUnauthorized)
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), CONTEXT_VALUE_USERID, uint(id))
+		ctx := context.WithValue(r.Context(), CONTEXT_VALUE_USERID, id)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
-func (m *middlewares_implementation) GenerateJWT(id uint, keeplogin bool) (string, error) {
+func (m *middlewares_implementation) GenerateJWT(id string, keeplogin bool) (string, error) {
 	payload := jwt.RegisteredClaims{}
-	payload.Subject = strconv.Itoa(int(id))
+	payload.Subject = id
 	payload.ExpiresAt = jwt.NewNumericDate(time.Now().Add(time.Hour * 24)) // JWT Have 1 day of duration
 
 	if keeplogin {
