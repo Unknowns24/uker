@@ -17,7 +17,7 @@ type Middlewares interface {
 	// @param keeplogin bool: Param to extend jwt valid time.
 	//
 	// @return (string, error): generated jwt & error if exists
-	GenerateJWT(id string, keeplogin bool, ipAddress string) (string, error)
+	GenerateJWT(id string, keeplogin bool, ipAddress string) (string, http.Cookie, error)
 
 	// Middleware to validate if user is authenticated with a valid JWT
 	//
@@ -73,7 +73,7 @@ func (m *middlewares_implementation) IsAuthenticated(next http.Handler) http.Han
 	})
 }
 
-func (m *middlewares_implementation) GenerateJWT(id string, keeplogin bool, ipAddress string) (string, error) {
+func (m *middlewares_implementation) GenerateJWT(id string, keeplogin bool, ipAddress string) (string, http.Cookie, error) {
 	// Generate date depending on keeplogin
 	date := jwt.NewNumericDate(time.Now().Add(time.Hour * 24)) // JWT Have 1 day of duration
 
@@ -91,6 +91,16 @@ func (m *middlewares_implementation) GenerateJWT(id string, keeplogin bool, ipAd
 	}
 
 	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(m.secret))
+	if err != nil {
+		return "", http.Cookie{}, err
+	}
 
-	return token, err
+	cookie := http.Cookie{
+		Name:     JWT_COOKIE_NAME,
+		Value:    token,
+		MaxAge:   int(date.Unix()),
+		HttpOnly: true,
+	}
+
+	return token, cookie, nil
 }
