@@ -45,6 +45,7 @@ func (m *middlewares_implementation) IsAuthenticated(next http.Handler) http.Han
 		cookie, err := r.Cookie(JWT_COOKIE_NAME)
 		if err != nil {
 			http.Error(w, ERROR_MIDDLEWARE_INVALID_COOKIE, http.StatusUnauthorized)
+			return
 		}
 
 		token, err := jwt.Parse(cookie.Value, func(token *jwt.Token) (interface{}, error) {
@@ -53,6 +54,7 @@ func (m *middlewares_implementation) IsAuthenticated(next http.Handler) http.Han
 
 		if err != nil || !token.Valid {
 			http.Error(w, ERROR_MIDDLEWARE_INVALID_JWT, http.StatusUnauthorized)
+			return
 		}
 
 		claims := token.Claims.(jwt.MapClaims)
@@ -63,10 +65,12 @@ func (m *middlewares_implementation) IsAuthenticated(next http.Handler) http.Han
 		id, err := strconv.ParseUint(claims[JWT_CLAIM_KEY_ISSUER].(string), 10, 32)
 		if err != nil {
 			http.Error(w, ERROR_MIDDLEWARE_INVALID_JWT, http.StatusUnauthorized)
+			return
 		}
 
 		if id == 0 || (ip != r.Context().Value(HTTP_HEADER_NGINX_USERIP) && ip != r.RemoteAddr) {
 			http.Error(w, ERROR_MIDDLEWARE_INVALID_JWT_USER, http.StatusUnauthorized)
+			return
 		}
 
 		ctx := context.WithValue(r.Context(), CONTEXT_VALUE_USERID, uint(id))
