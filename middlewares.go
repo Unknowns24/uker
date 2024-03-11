@@ -8,9 +8,6 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 )
 
-// variable to store jwt key
-var jwt_key string
-
 // Global interface
 type Middlewares interface {
 	// Generate a valid JWT
@@ -20,7 +17,7 @@ type Middlewares interface {
 	// @param keeplogin bool: Param to extend jwt valid time.
 	//
 	// @return (string, error): generated jwt & error if exists
-	GenerateJWT(id string, keeplogin bool) (string, error)
+	GenerateJWT(id string, keeplogin bool, ipAddress string) (string, error)
 
 	// Middleware to validate if user is authenticated with a valid JWT
 	//
@@ -31,12 +28,15 @@ type Middlewares interface {
 }
 
 // Local struct to be implmented
-type middlewares_implementation struct{}
+type middlewares_implementation struct {
+	secret string
+}
 
 // External contructor
 func NewMiddlewares(jwtKey string) Middlewares {
-	jwt_key = jwtKey
-	return &middlewares_implementation{}
+	return &middlewares_implementation{
+		secret: jwtKey,
+	}
 }
 
 func (m *middlewares_implementation) IsAuthenticated(next http.Handler) http.Handler {
@@ -48,7 +48,7 @@ func (m *middlewares_implementation) IsAuthenticated(next http.Handler) http.Han
 		}
 
 		token, err := jwt.Parse(cookie.Value, func(token *jwt.Token) (interface{}, error) {
-			return []byte(jwt_key), nil
+			return []byte(m.secret), nil
 		})
 
 		if err != nil || !token.Valid {
@@ -73,16 +73,24 @@ func (m *middlewares_implementation) IsAuthenticated(next http.Handler) http.Han
 	})
 }
 
-func (m *middlewares_implementation) GenerateJWT(id string, keeplogin bool) (string, error) {
-	payload := jwt.RegisteredClaims{}
-	payload.Subject = id
-	payload.ExpiresAt = jwt.NewNumericDate(time.Now().Add(time.Hour * 24)) // JWT Have 1 day of duration
+func (m *middlewares_implementation) GenerateJWT(id string, keeplogin bool, ipAddress string) (string, error) {
+	// Generate date depending on keeplogin
+	date := jwt.NewNumericDate(time.Now().Add(time.Hour * 24)) // JWT Have 1 day of duration
 
 	if keeplogin {
-		payload.ExpiresAt = jwt.NewNumericDate(time.Now().Add(time.Hour * 24 * 7)) // JWT Have 1 week of duration
+		date = jwt.NewNumericDate(time.Now().Add(time.Hour * 24 * 7)) // JWT Have 1 week of duration
 	}
 
-	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, payload).SignedString([]byte(jwt_key))
+	// Creating custom claims
+	claims := jwt.MapClaims{
+		"iss": id,
+		"exp": date.Unix(),
+		"data": map[string]string{
+			"ip": ipAddress,
+		},
+	}
+
+	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(m.secret))
 
 	return token, err
 }
