@@ -21,10 +21,18 @@ type Middlewares interface {
 
 	// Middleware to validate if user is authenticated with a valid JWT
 	//
-	// @param next http.Handler: Current fiber context.
-	//
-	// @return http.Handler: error on authentication
+	// @return http.Handler: Handler function used as middleware
 	IsAuthenticated(next http.Handler) http.Handler
+
+	// Middleware to validate if user is not authenticated
+	//
+	// @return http.Handler: Handler function used as middleware
+	NotAuthenticated(next http.Handler) http.Handler
+
+	// Middleware to check if user is authenticated with a valid JWT
+	//
+	// @return http.Handler: Handler function used as middleware
+	OptionalAuthenticated(next http.Handler) http.Handler
 }
 
 // Local struct to be implmented
@@ -37,6 +45,42 @@ func NewMiddlewares(jwtKey string) Middlewares {
 	return &middlewares_implementation{
 		secret: jwtKey,
 	}
+}
+
+func (m *middlewares_implementation) NotAuthenticated(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie(JWT_COOKIE_NAME)
+		if err != nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		token, err := jwt.Parse(cookie.Value, func(token *jwt.Token) (interface{}, error) {
+			return []byte(m.secret), nil
+		})
+
+		if err != nil || !token.Valid {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		claims := token.Claims.(jwt.MapClaims)
+		data := claims[JWT_CLAIM_KEY_DATA].(map[string]interface{})
+		id := claims[JWT_CLAIM_KEY_ISSUER].(string)
+		ip := data[JWT_CLAIM_KEY_IP].(string)
+
+		if id == "" || (ip != r.Context().Value(HTTP_HEADER_NGINX_USERIP) && ip != r.RemoteAddr) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		if id == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		http.Error(w, ERROR_MIDDLEWARE_NOT_AUTHENTICATED_ROUTE, http.StatusUnauthorized)
+	})
 }
 
 func (m *middlewares_implementation) IsAuthenticated(next http.Handler) http.Handler {
@@ -65,6 +109,38 @@ func (m *middlewares_implementation) IsAuthenticated(next http.Handler) http.Han
 
 		if id == "" || (ip != r.Context().Value(HTTP_HEADER_NGINX_USERIP) && ip != r.RemoteAddr) {
 			http.Error(w, ERROR_MIDDLEWARE_INVALID_JWT_USER, http.StatusUnauthorized)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), CONTEXT_VALUE_USERID, id)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func (m *middlewares_implementation) OptionalAuthenticated(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie(JWT_COOKIE_NAME)
+		if err != nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		token, err := jwt.Parse(cookie.Value, func(token *jwt.Token) (interface{}, error) {
+			return []byte(m.secret), nil
+		})
+
+		if err != nil || !token.Valid {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		claims := token.Claims.(jwt.MapClaims)
+		data := claims[JWT_CLAIM_KEY_DATA].(map[string]interface{})
+		ip := data[JWT_CLAIM_KEY_IP].(string)
+		id := claims[JWT_CLAIM_KEY_ISSUER].(string)
+
+		if id == "" || (ip != r.Context().Value(HTTP_HEADER_NGINX_USERIP) && ip != r.RemoteAddr) {
+			next.ServeHTTP(w, r)
 			return
 		}
 
