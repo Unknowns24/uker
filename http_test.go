@@ -182,6 +182,11 @@ func TestFinalOutPut(t *testing.T) {
 		t.Errorf("Error decoding the base response to JSON: %v", err)
 	}
 
+	// Verify the response content
+	if baseResponse["message"] != testMsg {
+		t.Errorf("Incorrect message in the response. Expected '%s', but got '%s'", testMsg, baseResponse["message"])
+	}
+
 	// Decode the data section of the JSON response
 	encodedData, err := json.Marshal(baseResponse["data"])
 	if err != nil {
@@ -191,11 +196,6 @@ func TestFinalOutPut(t *testing.T) {
 	var dataResponse map[string]string
 	if err := json.Unmarshal([]byte(encodedData), &dataResponse); err != nil {
 		t.Errorf("Error decoding the data content to JSON: %v", err)
-	}
-
-	// Verify the response content
-	if dataResponse["message"] != testMsg {
-		t.Errorf("Incorrect message in the response. Expected '%s', but got '%s'", testMsg, dataResponse["message"])
 	}
 
 	// Verify other additional values if needed

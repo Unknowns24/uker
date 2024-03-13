@@ -20,8 +20,9 @@ type NewHttpParameters struct {
 
 // helper struct
 type response struct {
-	Code int               `json:"code"`
-	Data map[string]string `json:"data"`
+	Code    int         `json:"code"`
+	Data    interface{} `json:"data,omitempty"`
+	Message string      `json:"message"`
 }
 
 // Struct with MultiformParser return
@@ -43,7 +44,7 @@ type Http interface {
 	// @param extraValues map[string]string: map with all extras key, value that response need to return.
 	//
 	// @return error: return fiber response
-	FinalOutPut(w http.ResponseWriter, resCode int, message string, extraValues map[string]string)
+	FinalOutPut(w http.ResponseWriter, resCode int, message string, extraValues interface{})
 
 	// Parse request body data
 	//
@@ -100,7 +101,7 @@ func NewHttp(encodedData bool) Http {
 	}
 }
 
-func (h *http_implementation) FinalOutPut(w http.ResponseWriter, resCode int, message string, extraValues map[string]string) {
+func (h *http_implementation) FinalOutPut(w http.ResponseWriter, resCode int, message string, extraValues interface{}) {
 	finalOutPut(w, resCode, message, extraValues)
 }
 
@@ -257,21 +258,22 @@ func (h *http_implementation) ExtractReqPaginationParameters(r *http.Request) Pa
 }
 
 // Declaring this local function tu use on all utility files
-func finalOutPut(w http.ResponseWriter, resCode int, message string, extraValues map[string]string) {
-	// if extra values is nil -> set it as an empty map[string]string
-	if extraValues == nil {
-		extraValues = map[string]string{}
+func finalOutPut(w http.ResponseWriter, resCode int, message string, extraValues interface{}) {
+	// crete the response interface
+	res := response{
+		Code:    resCode,
+		Message: message,
 	}
 
-	// Add message to the map
-	extraValues[REQUEST_KEY_MESSAGE] = message
-
-	// Encode response as json
-	jsonData, _ := json.Marshal(response{Data: extraValues, Code: resCode})
+	// if extra values is not nil -> add it on data field
+	if extraValues != nil {
+		res.Data = extraValues
+	}
 
 	// return error or success code
 	w.WriteHeader(resCode)
-	w.Write([]byte(string(jsonData)))
+	w.Header().Add("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(res)
 }
 
 func requiredParamsExists(x interface{}) bool {
