@@ -303,12 +303,17 @@ func decodeDataIfEncoded(data any, encoded bool, structure *interface{}) error {
 
 		codedJson = string(decoded)
 	} else {
-		bodyJson, err := json.Marshal(data)
-		if err != nil {
-			return fmt.Errorf("error while marshalling JSON: %v", err)
-		}
+		// If data is not encoded and is not string we have to convert it to string
+		if reflect.TypeOf(data).Kind() != reflect.String {
+			bodyJson, err := json.Marshal(data)
+			if err != nil {
+				return fmt.Errorf("error while marshalling JSON: %v", err)
+			}
 
-		codedJson = string(bodyJson)
+			codedJson = string(bodyJson)
+		} else {
+			codedJson = data.(string)
+		}
 	}
 
 	// Parse decoded json string to the specified interface
