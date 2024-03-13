@@ -272,7 +272,7 @@ func finalOutPut(w http.ResponseWriter, resCode int, message string, extraValues
 
 	// return error or success code
 	w.WriteHeader(resCode)
-	w.Header().Add("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(res)
 }
 
