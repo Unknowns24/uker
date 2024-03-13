@@ -111,7 +111,7 @@ func (h *http_implementation) BodyParser(w http.ResponseWriter, r *http.Request,
 		panic(fmt.Errorf("expected %s as requestInterface, %s received", reflect.Ptr, reflect.ValueOf(requestInterface).Kind()))
 	}
 
-	var bodyData map[string]string
+	var bodyData map[string]interface{}
 
 	// Read the body of the HTTP Request
 	body, err := io.ReadAll(r.Body)
@@ -124,14 +124,9 @@ func (h *http_implementation) BodyParser(w http.ResponseWriter, r *http.Request,
 		return errors.New(ERROR_HTTP_BAD_REQUEST)
 	}
 
-	dataContent, err := decodeDataIfEncoded(bodyData["data"], h.Base64Data)
+	err = decodeDataIfEncoded(bodyData["data"], h.Base64Data, &requestInterface)
 	if err != nil {
 		return err
-	}
-
-	// Parse the JSON encoded in base64
-	if err := json.Unmarshal([]byte(dataContent), &requestInterface); err != nil {
-		return errors.New(ERROR_HTTP_MALFORMED_DATA)
 	}
 
 	// Check if required values on valueInterface are not nil
@@ -157,14 +152,9 @@ func (h *http_implementation) MultiPartFormParser(w http.ResponseWriter, r *http
 		// Get requested FormValue value if exists inside of the multiform
 		valueData := r.FormValue(value)
 
-		dataContent, err := decodeDataIfEncoded(valueData, h.Base64Data)
+		err := decodeDataIfEncoded(valueData, h.Base64Data, &valueInterface)
 		if err != nil {
 			return nil, err
-		}
-
-		// Parse decoded json string to the specified interface
-		if err := json.Unmarshal([]byte(dataContent), valueInterface); err != nil {
-			return nil, fmt.Errorf("error unmarshalling JSON: %v", err)
 		}
 
 		// Check if required values on valueInterface are not nil
@@ -294,25 +284,37 @@ func requiredParamsExists(x interface{}) bool {
 	return true
 }
 
-func decodeDataIfEncoded(data string, encoded bool) (string, error) {
+func decodeDataIfEncoded(data any, encoded bool, structure *interface{}) error {
 	// Check if the 'data' field exists within the JSON in the body
-	if data == "" {
-		return "", errors.New(ERROR_HTTP_MISSING_DATA)
+	if data == nil {
+		return errors.New(ERROR_HTTP_MISSING_DATA)
 	}
 
-	dataContent := data
+	codedJson := ""
 
 	if encoded {
 		// Decode the value of the 'data' field from base64
-		decoded, err := base64.StdEncoding.DecodeString(dataContent)
+		decoded, err := base64.StdEncoding.DecodeString(data.(string))
 
 		// Check if there was an error while decoding the base64
 		if err != nil {
-			return "", errors.New(ERROR_HTTP_INVALID_BASE64)
+			return errors.New(ERROR_HTTP_INVALID_BASE64)
 		}
 
-		dataContent = string(decoded)
+		codedJson = string(decoded)
+	} else {
+		bodyJson, err := json.Marshal(data)
+		if err != nil {
+			return fmt.Errorf("error while marshalling JSON: %v", err)
+		}
+
+		codedJson = string(bodyJson)
 	}
 
-	return dataContent, nil
+	// Parse decoded json string to the specified interface
+	if err := json.Unmarshal([]byte(codedJson), structure); err != nil {
+		return fmt.Errorf("error unmarshalling JSON: %v", err)
+	}
+
+	return nil
 }
