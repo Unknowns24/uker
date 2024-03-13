@@ -21,8 +21,8 @@ type NewHttpParameters struct {
 // helper struct
 type response struct {
 	Code    int         `json:"code"`
-	Data    interface{} `json:"data,omitempty"`
 	Message string      `json:"message"`
+	Data    interface{} `json:"data,omitempty"`
 }
 
 // Struct with MultiformParser return
