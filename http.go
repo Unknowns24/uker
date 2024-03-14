@@ -33,58 +33,12 @@ type MutiformData struct {
 
 // Global interface
 type Http interface {
-	// Create a fiber response as json string
-	//
-	// @param w http.ResponseWriter Current fiber context.
-	//
-	// @param resCode int: Http response code.
-	//
-	// @param message string: Response message.
-	//
-	// @param extraValues map[string]string: map with all extras key, value that response need to return.
-	//
-	// @return error: return fiber response
 	FinalOutPut(w http.ResponseWriter, resCode int, message string, extraValues interface{})
-
-	// Parse request body data
-	//
-	// @param c *fiber.Ctx: Current fiber context.
-	//
-	// @param requestInterface *interface{}: Interface pointer where parsed data will be stored.
-	//
-	// @return error: error if exists
+	ErrorOutPut(w http.ResponseWriter, resCode int, message string)
 	BodyParser(w http.ResponseWriter, r *http.Request, requestInterface interface{}) error
-
-	// Multi part form parser
-	//
-	// @param c *fiber.Ctx: current fiber context.
-	//
-	// @param values map[string]*interface{}: map with the value to be parsed and the interface pointer to decode it.
-	//
-	// @param files []string: string slice with all files that are required of the multipart.
-	//
-	// @return (map[string][]*multipart.FileHeader, error): map with all files & error if exists
 	MultiPartFormParser(w http.ResponseWriter, r *http.Request, values map[string]interface{}, files []string) (map[string][]*multipart.FileHeader, error)
-
-	// Multi part file parser
-	//
-	// @param files []*multipart.FileHeader: slice with all multipart files to be added as buff
-	//
-	// @return [][]byte: files buffer
 	MultiPartFileToBuff(files []*multipart.FileHeader) [][]byte
-
-	// Multi part file parser
-	//
-	// @param files []*multipart.FileHeader: slice with all multipart files
-	//
-	// @return ([][]byte, error): file buffer & error if exists
 	FirstMultiPartFileToBuff(files []*multipart.FileHeader) ([][]byte, error)
-
-	// Extract request pagination parameters
-	//
-	// @param c *fiber.Ctx: fiber request context
-	//
-	// @return Pagination: Pagination struct with all request params
 	ExtractReqPaginationParameters(r *http.Request) Pagination
 }
 
@@ -101,10 +55,37 @@ func NewHttp(encodedData bool) Http {
 	}
 }
 
+// Create an http response as json string
+//
+// @param w http.ResponseWriter Current handler writer.
+//
+// @param resCode int: Http response code.
+//
+// @param message string: Response message.
+//
+// @param extraValues interface{}: interface that will be sended on data field.
 func (h *http_implementation) FinalOutPut(w http.ResponseWriter, resCode int, message string, extraValues interface{}) {
 	finalOutPut(w, resCode, message, extraValues)
 }
 
+// Create an http error response as json string
+//
+// @param w http.ResponseWriter Current fiber context.
+//
+// @param resCode int: Http response code.
+//
+// @param message string: Response message.
+func (h *http_implementation) ErrorOutPut(w http.ResponseWriter, resCode int, message string) {
+	errorOutPut(w, resCode, message)
+}
+
+// Parse request body data
+//
+// @param c *fiber.Ctx: Current fiber context.
+//
+// @param requestInterface *interface{}: Interface pointer where parsed data will be stored.
+//
+// @return error: error if exists
 func (h *http_implementation) BodyParser(w http.ResponseWriter, r *http.Request, requestInterface interface{}) error {
 	// Validate if requestInterface is a pointer
 	if reflect.ValueOf(requestInterface).Kind() != reflect.Ptr {
@@ -137,6 +118,15 @@ func (h *http_implementation) BodyParser(w http.ResponseWriter, r *http.Request,
 	return nil
 }
 
+// Multi part form parser
+//
+// @param c *fiber.Ctx: current fiber context.
+//
+// @param values map[string]*interface{}: map with the value to be parsed and the interface pointer to decode it.
+//
+// @param files []string: string slice with all files that are required of the multipart.
+//
+// @return (map[string][]*multipart.FileHeader, error): map with all files & error if exists
 func (h *http_implementation) MultiPartFormParser(w http.ResponseWriter, r *http.Request, values map[string]interface{}, files []string) (map[string][]*multipart.FileHeader, error) {
 	err := r.ParseMultipartForm(10 << 20) // 10MB max
 	if err != nil {
@@ -180,6 +170,11 @@ func (h *http_implementation) MultiPartFormParser(w http.ResponseWriter, r *http
 	return parsedFiles, nil
 }
 
+// Multi part file parser
+//
+// @param files []*multipart.FileHeader: slice with all multipart files to be added as buff
+//
+// @return [][]byte: files buffer
 func (h *http_implementation) MultiPartFileToBuff(files []*multipart.FileHeader) [][]byte {
 	filesBuffers := make([][]byte, len(files))
 
@@ -202,6 +197,11 @@ func (h *http_implementation) MultiPartFileToBuff(files []*multipart.FileHeader)
 	return filesBuffers
 }
 
+// Multi part file parser
+//
+// @param files []*multipart.FileHeader: slice with all multipart files
+//
+// @return ([][]byte, error): file buffer & error if exists
 func (h *http_implementation) FirstMultiPartFileToBuff(files []*multipart.FileHeader) ([][]byte, error) {
 	fileBuff := make([][]byte, 1)
 
@@ -223,6 +223,11 @@ func (h *http_implementation) FirstMultiPartFileToBuff(files []*multipart.FileHe
 	return fileBuff, nil
 }
 
+// Extract request pagination parameters
+//
+// @param r *http.Request: Actual handler http request
+//
+// @return Pagination: Pagination struct with all request params
 func (h *http_implementation) ExtractReqPaginationParameters(r *http.Request) Pagination {
 	queryParams := r.URL.Query()
 	pagination := Pagination{
@@ -322,4 +327,19 @@ func decodeDataIfEncoded(data any, encoded bool, structure *interface{}) error {
 	}
 
 	return nil
+}
+
+func errorOutPut(w http.ResponseWriter, resCode int, message string) {
+	// crete the response interface
+	res := response{
+		Code:    resCode,
+		Message: message,
+	}
+
+	// convert response struct into json string
+	jsonData, _ := json.Marshal(res)
+
+	// return error
+	w.Header().Set("Content-Type", "application/json")
+	http.Error(w, string(jsonData), resCode)
 }
