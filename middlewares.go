@@ -79,7 +79,7 @@ func (m *middlewares_implementation) NotAuthenticated(next http.Handler) http.Ha
 			return
 		}
 
-		http.Error(w, ERROR_MIDDLEWARE_NOT_AUTHENTICATED_ROUTE, http.StatusUnauthorized)
+		errorOutPut(w, http.StatusUnauthorized, ERROR_MIDDLEWARE_NOT_AUTHENTICATED_ROUTE)
 	})
 }
 
@@ -87,7 +87,7 @@ func (m *middlewares_implementation) IsAuthenticated(next http.Handler) http.Han
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie(JWT_COOKIE_NAME)
 		if err != nil {
-			http.Error(w, ERROR_MIDDLEWARE_INVALID_COOKIE, http.StatusUnauthorized)
+			errorOutPut(w, http.StatusUnauthorized, ERROR_MIDDLEWARE_INVALID_COOKIE)
 			return
 		}
 
@@ -96,7 +96,7 @@ func (m *middlewares_implementation) IsAuthenticated(next http.Handler) http.Han
 		})
 
 		if err != nil || !token.Valid {
-			http.Error(w, ERROR_MIDDLEWARE_INVALID_JWT, http.StatusUnauthorized)
+			errorOutPut(w, http.StatusUnauthorized, ERROR_MIDDLEWARE_INVALID_JWT)
 			return
 		}
 
@@ -108,7 +108,7 @@ func (m *middlewares_implementation) IsAuthenticated(next http.Handler) http.Han
 		id := claims[JWT_CLAIM_KEY_ISSUER].(string)
 
 		if id == "" || (ip != r.Context().Value(HTTP_HEADER_NGINX_USERIP) && ip != r.RemoteAddr) {
-			http.Error(w, ERROR_MIDDLEWARE_INVALID_JWT_USER, http.StatusUnauthorized)
+			errorOutPut(w, http.StatusUnauthorized, ERROR_MIDDLEWARE_INVALID_JWT_USER)
 			return
 		}
 
