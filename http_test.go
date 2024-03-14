@@ -208,6 +208,32 @@ func TestFinalOutPut(t *testing.T) {
 	}
 }
 
+func TestErrorOutPut(t *testing.T) {
+	const testMsg = "TEST"
+
+	// Create a http.ResponseWriter to capture output
+	res := httptest.NewRecorder()
+
+	// Call the ErrorOutPut function with test values
+	uker.NewHttp(true).ErrorOutPut(res, http.StatusOK, testMsg)
+
+	// Verify the response status code
+	if res.Code != http.StatusOK {
+		t.Errorf("Incorrect response status code. Expected %d, but got %d", http.StatusOK, res.Code)
+	}
+
+	// Decode the JSON response
+	var baseResponse map[string]interface{}
+	if err := json.Unmarshal(res.Body.Bytes(), &baseResponse); err != nil {
+		t.Errorf("Error decoding the base response to JSON: %v", err)
+	}
+
+	// Verify the response content
+	if baseResponse["message"] != testMsg {
+		t.Errorf("Incorrect message in the response. Expected '%s', but got '%s'", testMsg, baseResponse["message"])
+	}
+}
+
 func TestExtractReqPaginationParameters(t *testing.T) {
 	// Create an HTTP request with different query parameters
 
