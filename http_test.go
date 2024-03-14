@@ -222,6 +222,11 @@ func TestErrorOutPut(t *testing.T) {
 		t.Errorf("Incorrect response status code. Expected %d, but got %d", http.StatusOK, res.Code)
 	}
 
+	contentType := res.Header().Get("content-type")
+	if contentType != "application/json" {
+		t.Errorf("Incorrect content type. Expected application/json, but got %s", contentType)
+	}
+
 	// Decode the JSON response
 	var baseResponse map[string]interface{}
 	if err := json.Unmarshal(res.Body.Bytes(), &baseResponse); err != nil {
