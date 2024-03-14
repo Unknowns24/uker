@@ -340,6 +340,8 @@ func errorOutPut(w http.ResponseWriter, resCode int, message string) {
 	jsonData, _ := json.Marshal(res)
 
 	// return error
-	http.Error(w, string(jsonData), resCode)
 	w.Header().Set("content-type", "application/json")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(resCode)
+	fmt.Fprintln(w, string(jsonData))
 }
