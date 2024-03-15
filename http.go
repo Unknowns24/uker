@@ -36,7 +36,7 @@ type Http interface {
 	FinalOutPut(w http.ResponseWriter, resCode int, message string, extraValues interface{})
 	ErrorOutPut(w http.ResponseWriter, resCode int, message string)
 	BodyParser(w http.ResponseWriter, r *http.Request, requestInterface interface{}) error
-	MultiPartFormParser(w http.ResponseWriter, r *http.Request, values map[string]interface{}, files []string) (map[string][]*multipart.FileHeader, error)
+	MultiPartFormParser(w http.ResponseWriter, r *http.Request, values map[string]interface{}, files ...string) (map[string][]*multipart.FileHeader, error)
 	MultiPartFileToBuff(files []*multipart.FileHeader) [][]byte
 	FirstMultiPartFileToBuff(files []*multipart.FileHeader) ([][]byte, error)
 	ExtractReqPaginationParameters(r *http.Request) Pagination
@@ -127,7 +127,7 @@ func (h *http_implementation) BodyParser(w http.ResponseWriter, r *http.Request,
 // @param files []string: string slice with all files that are required of the multipart.
 //
 // @return (map[string][]*multipart.FileHeader, error): map with all files & error if exists
-func (h *http_implementation) MultiPartFormParser(w http.ResponseWriter, r *http.Request, values map[string]interface{}, files []string) (map[string][]*multipart.FileHeader, error) {
+func (h *http_implementation) MultiPartFormParser(w http.ResponseWriter, r *http.Request, values map[string]interface{}, files ...string) (map[string][]*multipart.FileHeader, error) {
 	err := r.ParseMultipartForm(10 << 20) // 10MB max
 	if err != nil {
 		return nil, fmt.Errorf("error parsing multipart form: %v", err)

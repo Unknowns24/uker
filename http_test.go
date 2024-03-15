@@ -75,7 +75,7 @@ func TestMultiPartFormParser(t *testing.T) {
 	res := httptest.NewRecorder()
 
 	// Call the MultiPartFormParser function
-	files, err := uker.NewHttp(true).MultiPartFormParser(res, req, values, []string{"file1"})
+	files, err := uker.NewHttp(true).MultiPartFormParser(res, req, values, "file1")
 	if err != nil {
 		t.Errorf("Error in MultiPartFormParser function: %v", err)
 	}
