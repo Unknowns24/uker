@@ -44,7 +44,7 @@ func TestPaginate(t *testing.T) {
 	}
 
 	// Call the Paginate function
-	paginationResult := noPaginateParams.Paginate(db, "test_products", "state != 0", &result)
+	paginationResult := noPaginateParams.Paginate(db, &TestProduct{}, "state != 0", &result)
 
 	// Check if the pagination result is not nil
 	if paginationResult == nil {
@@ -75,14 +75,14 @@ func TestPaginate(t *testing.T) {
 	var result2 []TestProduct
 
 	// Call the Paginate function
-	paginationResult2 := paginateParams.Paginate(db, "test_products", "state != 2", &result2)
+	paginationResult2 := paginateParams.Paginate(db, &TestProduct{}, "state != 2", &result2)
 
 	if paginationResult2["last_page"] != 2 {
 		t.Error("Per page not working")
 	}
 
 	if paginationResult2["total"] != int64(2) {
-		t.Errorf("Some clause is not working, expected total 2 -> %s received", paginationResult2["total"])
+		t.Errorf("Some clause is not working, expected total 2 -> %d received", paginationResult2["total"])
 	}
 
 	err = mock.Close()

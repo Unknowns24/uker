@@ -24,16 +24,16 @@ type Pagination struct {
 //
 // @param db *gorm.DB: Database pointer to perform the pagination.
 //
-// @param tableName string: Name of the table to paginate.
+// @param tableName interface{}: Model of the table to paginate.
 //
 // @param condition string: Where condition to add to the pagination if necessary.
 //
 // @param result interface{}: Interface of wantend result.
 //
 // @return (fiber.Map, error): map with all paginated data & error if exists
-func (p *Pagination) Paginate(db *gorm.DB, tableName string, condition string, result interface{}) map[string]interface{} {
+func (p *Pagination) Paginate(db *gorm.DB, tableModel interface{}, condition string, result interface{}) map[string]interface{} {
 	// Build a base query without conditions
-	query := db.Table(tableName)
+	query := db.Model(tableModel)
 
 	if condition != "" {
 		query = query.Where(condition)
