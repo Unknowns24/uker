@@ -38,7 +38,7 @@ type Http interface {
 	BodyParser(w http.ResponseWriter, r *http.Request, requestInterface interface{}) error
 	MultiPartFormParser(w http.ResponseWriter, r *http.Request, values map[string]interface{}, files ...string) (map[string][]*multipart.FileHeader, error)
 	MultiPartFileToBuff(files []*multipart.FileHeader) [][]byte
-	FirstMultiPartFileToBuff(files []*multipart.FileHeader) ([][]byte, error)
+	FirstMultiPartFileToBuff(files []*multipart.FileHeader) ([]byte, error)
 	ExtractReqPaginationParameters(r *http.Request) Pagination
 }
 
@@ -201,26 +201,23 @@ func (h *http_implementation) MultiPartFileToBuff(files []*multipart.FileHeader)
 //
 // @param files []*multipart.FileHeader: slice with all multipart files
 //
-// @return ([][]byte, error): file buffer & error if exists
-func (h *http_implementation) FirstMultiPartFileToBuff(files []*multipart.FileHeader) ([][]byte, error) {
-	fileBuff := make([][]byte, 1)
-
+// @return ([]byte, error): file buffer & error if exists
+func (h *http_implementation) FirstMultiPartFileToBuff(files []*multipart.FileHeader) ([]byte, error) {
 	// Get the first image in case there is more than one
 	thisFile, err := files[0].Open()
 	if err != nil {
 		return nil, fmt.Errorf("cannot open the first file of the slice: %s", err)
 	}
 
+	// Create new buffer
 	buf := bytes.NewBuffer(nil)
-	_, err = io.Copy(buf, thisFile)
 
-	if err != nil {
+	// Copy file content in the buffer
+	if _, err = io.Copy(buf, thisFile); err != nil {
 		return nil, fmt.Errorf("cannot copy the first file content to the buffer: %s", err)
 	}
 
-	fileBuff[0] = buf.Bytes()
-
-	return fileBuff, nil
+	return buf.Bytes(), nil
 }
 
 // Extract request pagination parameters
