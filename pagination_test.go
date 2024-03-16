@@ -43,8 +43,15 @@ func TestPaginate(t *testing.T) {
 		SortDir: uker.PAGINATION_ORDER_DESC,
 	}
 
+	pagOneParams := uker.PaginationOpts{
+		DB:         db,
+		Where:      "state != 0",
+		Result:     &result,
+		TableModel: &TestProduct{},
+	}
+
 	// Call the Paginate function
-	paginationResult := noPaginateParams.Paginate(db, &TestProduct{}, "state != 0", &result)
+	paginationResult := noPaginateParams.Paginate(pagOneParams)
 
 	// Check if the pagination result is not nil
 	if paginationResult == nil {
@@ -75,7 +82,13 @@ func TestPaginate(t *testing.T) {
 	var result2 []TestProduct
 
 	// Call the Paginate function
-	paginationResult2 := paginateParams.Paginate(db, &TestProduct{}, "state != 2", &result2)
+	pagTwoParams := uker.PaginationOpts{
+		DB:         db,
+		Where:      "state != 2",
+		Result:     &result2,
+		TableModel: &TestProduct{},
+	}
+	paginationResult2 := paginateParams.Paginate(pagTwoParams)
 
 	if paginationResult2["last_page"] != 2 {
 		t.Error("Per page not working")

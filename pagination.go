@@ -18,31 +18,47 @@ type Pagination struct {
 	SortDir string
 }
 
-// Server data pagination
-//
-// @param c *fiber.Ctx: current fiber context.
+type PaginationOpts struct {
+	DB         *gorm.DB
+	Join       string
+	Where      string
+	Select     string
+	Result     interface{}
+	TableModel interface{}
+}
+
+// Server data pagination with specified select
 //
 // @param db *gorm.DB: Database pointer to perform the pagination.
 //
-// @param tableName interface{}: Model of the table to paginate.
+// @param tableModel interface{}: Model of the table to paginate.
+//
+// @param selectQry string: Select query.
 //
 // @param condition string: Where condition to add to the pagination if necessary.
 //
+// @param join string: join condition to add to the pagination if necessary.
+//
 // @param result interface{}: Interface of wantend result.
 //
-// @return (fiber.Map, error): map with all paginated data & error if exists
-func (p *Pagination) Paginate(db *gorm.DB, tableModel interface{}, condition string, result interface{}) map[string]interface{} {
+// @return map[string]interface{}: map with all paginated data
+func (p *Pagination) Paginate(opts PaginationOpts) map[string]interface{} {
 	// Build a base query without conditions
-	query := db.Model(tableModel)
+	query := opts.DB.Model(opts.TableModel)
 
-	if condition != "" {
-		query = query.Where(condition)
+	// Apply custom select query if provided
+	if opts.Select != "" {
+		query = query.Select(opts.Select)
+	}
+
+	if opts.Where != "" {
+		query = query.Where(opts.Where)
 	}
 
 	// Apply search if provided
 	if p.Search != "" {
 		// Get the type of the result to dynamically generate search conditions
-		modelType := reflect.TypeOf(result).Elem().Elem()
+		modelType := reflect.TypeOf(opts.Result).Elem().Elem()
 
 		// Start with an empty condition
 		searchCondition := ""
@@ -66,6 +82,11 @@ func (p *Pagination) Paginate(db *gorm.DB, tableModel interface{}, condition str
 
 		// Combine the search condition with the existing condition using "AND"
 		query = query.Where(searchCondition)
+	}
+
+	// Apply join if provided
+	if opts.Join != "" {
+		query = query.Joins(opts.Join)
 	}
 
 	// Apply sorting if provided
@@ -99,13 +120,13 @@ func (p *Pagination) Paginate(db *gorm.DB, tableModel interface{}, condition str
 	}
 
 	// Perform pagination
-	query.Limit(perPage).Offset((page - 1) * perPage).Find(result)
+	query.Limit(perPage).Offset((page - 1) * perPage).Find(opts.Result)
 
 	return map[string]interface{}{
 		"page":      page,
 		"total":     total,
 		"per_page":  perPage,
 		"last_page": lastPage,
-		"data":      result,
+		"data":      opts.Result,
 	}
 }
