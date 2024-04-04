@@ -34,7 +34,7 @@ const (
 
 // http header constants
 const (
-	HTTP_HEADER_CLOUDFLARE_USERIP = "X-Forwarded-For"
+	HTTP_HEADER_CLOUDFLARE_USERIP = "Cf-Connecting-Ip"
 )
 
 // request constants
