@@ -2,6 +2,7 @@ package uker
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -106,6 +107,13 @@ func (m *middlewares_implementation) IsAuthenticated(next http.Handler) http.Han
 		ip := data[JWT_CLAIM_KEY_IP].(string)
 
 		id := claims[JWT_CLAIM_KEY_ISSUER].(string)
+
+		fmt.Println(">>>>>>>>>>>>>>>>>>>")
+		fmt.Println(id)
+		fmt.Println(ip)
+		fmt.Println(r.Context().Value(HTTP_HEADER_CLOUDFLARE_USERIP))
+		fmt.Println(r.RemoteAddr)
+		fmt.Println("<<<<<<<<<<<<<<<<<<<")
 
 		if id == "" || (ip != r.Context().Value(HTTP_HEADER_CLOUDFLARE_USERIP) && ip != r.RemoteAddr) {
 			errorOutPut(w, http.StatusUnauthorized, ERROR_MIDDLEWARE_INVALID_JWT_USER)
