@@ -34,7 +34,7 @@ const (
 
 // http header constants
 const (
-	HTTP_HEADER_NGINX_USERIP = "X-Real-IP"
+	HTTP_HEADER_CLOUDFLARE_USERIP = "X-Forwarded-For"
 )
 
 // request constants
