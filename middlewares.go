@@ -69,7 +69,7 @@ func (m *middlewares_implementation) NotAuthenticated(next http.Handler) http.Ha
 		id := claims[JWT_CLAIM_KEY_ISSUER].(string)
 		ip := data[JWT_CLAIM_KEY_IP].(string)
 
-		if id == "" || (ip != r.Context().Value(HTTP_HEADER_NGINX_USERIP) && ip != r.RemoteAddr) {
+		if id == "" || (ip != r.Header.Get(HTTP_HEADER_CLOUDFLARE_USERIP) && ip != r.RemoteAddr) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -107,7 +107,7 @@ func (m *middlewares_implementation) IsAuthenticated(next http.Handler) http.Han
 
 		id := claims[JWT_CLAIM_KEY_ISSUER].(string)
 
-		if id == "" || (ip != r.Context().Value(HTTP_HEADER_NGINX_USERIP) && ip != r.RemoteAddr) {
+		if id == "" || (ip != r.Header.Get(HTTP_HEADER_CLOUDFLARE_USERIP) && ip != r.RemoteAddr) {
 			errorOutPut(w, http.StatusUnauthorized, ERROR_MIDDLEWARE_INVALID_JWT_USER)
 			return
 		}
@@ -139,7 +139,7 @@ func (m *middlewares_implementation) OptionalAuthenticated(next http.Handler) ht
 		ip := data[JWT_CLAIM_KEY_IP].(string)
 		id := claims[JWT_CLAIM_KEY_ISSUER].(string)
 
-		if id == "" || (ip != r.Context().Value(HTTP_HEADER_NGINX_USERIP) && ip != r.RemoteAddr) {
+		if id == "" || (ip != r.Header.Get(HTTP_HEADER_CLOUDFLARE_USERIP) && ip != r.RemoteAddr) {
 			next.ServeHTTP(w, r)
 			return
 		}

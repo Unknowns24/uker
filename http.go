@@ -266,6 +266,11 @@ func finalOutPut(w http.ResponseWriter, resCode int, message string, extraValues
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(resCode)
 	json.NewEncoder(w).Encode(res)
+
+	// Flush the response
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 func requiredParamsExists(x interface{}) bool {
@@ -341,4 +346,9 @@ func errorOutPut(w http.ResponseWriter, resCode int, message string) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(resCode)
 	fmt.Fprintln(w, string(jsonData))
+
+	// Flush the response
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush()
+	}
 }
