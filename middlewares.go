@@ -8,6 +8,33 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 )
 
+// These are the default errors returned by this middleware
+var defaultErrors = &MiddlewareErrors{
+	NotAuthenticatedRoute: &ResponseStatus{
+		Type:        ERROR,
+		Code:        ERROR_MIDDLEWARE_NOT_AUTHENTICATED_ROUTE,
+		Description: "",
+	},
+
+	InvalidJWTCookie: &ResponseStatus{
+		Type:        ERROR,
+		Code:        ERROR_MIDDLEWARE_INVALID_COOKIE,
+		Description: "",
+	},
+
+	InvalidJWTUser: &ResponseStatus{
+		Type:        ERROR,
+		Code:        ERROR_MIDDLEWARE_INVALID_JWT,
+		Description: "",
+	},
+
+	InvalidJWT: &ResponseStatus{
+		Type:        ERROR,
+		Code:        ERROR_MIDDLEWARE_INVALID_JWT_USER,
+		Description: "",
+	},
+}
+
 // Global interface
 type Middlewares interface {
 	// Generate a valid JWT
@@ -37,13 +64,54 @@ type Middlewares interface {
 
 // Local struct to be implmented
 type middlewares_implementation struct {
-	secret string
+	secret         string
+	errors         *MiddlewareErrors
+	cookieSameSite http.SameSite
+}
+
+type MiddlewareErrors struct {
+	NotAuthenticatedRoute *ResponseStatus
+	InvalidJWTCookie      *ResponseStatus
+	InvalidJWTUser        *ResponseStatus
+	InvalidJWT            *ResponseStatus
+}
+
+type MiddlewareOptions struct {
+	Errors         MiddlewareErrors
+	CookieSameSite http.SameSite
 }
 
 // External contructor
-func NewMiddlewares(jwtKey string) Middlewares {
+func NewMiddlewares(jwtKey string, opts *MiddlewareOptions) Middlewares {
+	sameSite := http.SameSiteStrictMode
+	errors := defaultErrors
+
+	if opts != nil {
+		if opts.CookieSameSite != 0 {
+			sameSite = opts.CookieSameSite
+		}
+
+		if opts.Errors.NotAuthenticatedRoute != nil {
+			errors.NotAuthenticatedRoute = opts.Errors.NotAuthenticatedRoute
+		}
+
+		if opts.Errors.InvalidJWTCookie != nil {
+			errors.InvalidJWTCookie = opts.Errors.InvalidJWTCookie
+		}
+
+		if opts.Errors.InvalidJWTUser != nil {
+			errors.InvalidJWTUser = opts.Errors.InvalidJWTUser
+		}
+
+		if opts.Errors.InvalidJWT != nil {
+			errors.InvalidJWT = opts.Errors.InvalidJWT
+		}
+	}
+
 	return &middlewares_implementation{
-		secret: jwtKey,
+		secret:         jwtKey,
+		errors:         errors,
+		cookieSameSite: sameSite,
 	}
 }
 
@@ -79,7 +147,7 @@ func (m *middlewares_implementation) NotAuthenticated(next http.Handler) http.Ha
 			return
 		}
 
-		errorOutPut(w, http.StatusUnauthorized, ERROR_MIDDLEWARE_NOT_AUTHENTICATED_ROUTE)
+		errorOutPut(w, http.StatusUnauthorized, m.errors.NotAuthenticatedRoute)
 	})
 }
 
@@ -87,7 +155,7 @@ func (m *middlewares_implementation) IsAuthenticated(next http.Handler) http.Han
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie(JWT_COOKIE_NAME)
 		if err != nil {
-			errorOutPut(w, http.StatusUnauthorized, ERROR_MIDDLEWARE_INVALID_COOKIE)
+			errorOutPut(w, http.StatusUnauthorized, m.errors.InvalidJWTCookie)
 			return
 		}
 
@@ -96,7 +164,7 @@ func (m *middlewares_implementation) IsAuthenticated(next http.Handler) http.Han
 		})
 
 		if err != nil || !token.Valid {
-			errorOutPut(w, http.StatusUnauthorized, ERROR_MIDDLEWARE_INVALID_JWT)
+			errorOutPut(w, http.StatusUnauthorized, m.errors.InvalidJWT)
 			return
 		}
 
@@ -108,7 +176,7 @@ func (m *middlewares_implementation) IsAuthenticated(next http.Handler) http.Han
 		id := claims[JWT_CLAIM_KEY_ISSUER].(string)
 
 		if id == "" || (ip != r.Header.Get(HTTP_HEADER_CLOUDFLARE_USERIP) && ip != r.RemoteAddr) {
-			errorOutPut(w, http.StatusUnauthorized, ERROR_MIDDLEWARE_INVALID_JWT_USER)
+			errorOutPut(w, http.StatusUnauthorized, m.errors.InvalidJWTUser)
 			return
 		}
 
