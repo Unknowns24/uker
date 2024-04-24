@@ -164,12 +164,17 @@ func TestBodyParser(t *testing.T) {
 
 func TestFinalOutPut(t *testing.T) {
 	const testMsg = "TEST"
+	const testDesc = "TESTDESC"
 
 	// Create a http.ResponseWriter to capture output
 	res := httptest.NewRecorder()
 
 	// Call the FinalOutPut function with test values
-	uker.NewHttp(true).FinalOutPut(res, http.StatusOK, testMsg, map[string]string{"key1": "value1", "key2": "value2"})
+	uker.NewHttp(true).FinalOutPut(res, http.StatusOK, &uker.ResponseStatus{
+		Type:        uker.SUCCESS,
+		Code:        testMsg,
+		Description: testDesc,
+	}, map[string]string{"key1": "value1", "key2": "value2"})
 
 	// Verify the response status code
 	if res.Code != http.StatusOK {
@@ -177,18 +182,27 @@ func TestFinalOutPut(t *testing.T) {
 	}
 
 	// Decode the JSON response
-	var baseResponse map[string]interface{}
+	var baseResponse uker.Response
 	if err := json.Unmarshal(res.Body.Bytes(), &baseResponse); err != nil {
 		t.Errorf("Error decoding the base response to JSON: %v", err)
 	}
 
+	// Verify the response status type
+	if baseResponse.Status.Type != uker.SUCCESS {
+		t.Errorf("Incorrect status type in the response. Expected '%s', but got '%s'", uker.SUCCESS, baseResponse.Status.Type)
+	}
+
 	// Verify the response content
-	if baseResponse["message"] != testMsg {
-		t.Errorf("Incorrect message in the response. Expected '%s', but got '%s'", testMsg, baseResponse["message"])
+	if baseResponse.Status.Code != testMsg {
+		t.Errorf("Incorrect status code in the response. Expected '%s', but got '%s'", testMsg, baseResponse.Status.Code)
+	}
+
+	if baseResponse.Status.Description != testDesc {
+		t.Errorf("Incorrect status code in the response. Expected '%s', but got '%s'", testDesc, baseResponse.Status.Description)
 	}
 
 	// Decode the data section of the JSON response
-	encodedData, err := json.Marshal(baseResponse["data"])
+	encodedData, err := json.Marshal(baseResponse.Data)
 	if err != nil {
 		t.Errorf("Error encoding data to JSON: %v", err)
 	}
@@ -215,7 +229,7 @@ func TestErrorOutPut(t *testing.T) {
 	res := httptest.NewRecorder()
 
 	// Call the ErrorOutPut function with test values
-	uker.NewHttp(true).ErrorOutPut(res, http.StatusOK, testMsg)
+	uker.NewHttp(true).ErrorOutPut(res, http.StatusOK, &uker.ResponseStatus{Type: uker.ERROR, Code: testMsg})
 
 	// Verify the response status code
 	if res.Code != http.StatusOK {
@@ -228,14 +242,18 @@ func TestErrorOutPut(t *testing.T) {
 	}
 
 	// Decode the JSON response
-	var baseResponse map[string]interface{}
+	var baseResponse uker.Response
 	if err := json.Unmarshal(res.Body.Bytes(), &baseResponse); err != nil {
 		t.Errorf("Error decoding the base response to JSON: %v", err)
 	}
 
 	// Verify the response content
-	if baseResponse["message"] != testMsg {
-		t.Errorf("Incorrect message in the response. Expected '%s', but got '%s'", testMsg, baseResponse["message"])
+	if baseResponse.Status.Type != uker.ERROR {
+		t.Errorf("Incorrect message in the response. Expected '%s', but got '%s'", uker.ERROR, baseResponse.Status.Type)
+	}
+
+	if baseResponse.Status.Code != testMsg {
+		t.Errorf("Incorrect message in the response. Expected '%s', but got '%s'", testMsg, baseResponse.Status.Code)
 	}
 }
 

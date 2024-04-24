@@ -18,11 +18,23 @@ type NewHttpParameters struct {
 	EncodeBody bool
 }
 
-// helper struct
-type response struct {
-	Code    int         `json:"code"`
-	Message string      `json:"message"`
-	Data    interface{} `json:"data,omitempty"`
+// helper structs
+type ResponseStatusType string
+
+const (
+	ERROR   ResponseStatusType = "error"
+	SUCCESS ResponseStatusType = "success"
+)
+
+type ResponseStatus struct {
+	Type        ResponseStatusType `json:"type"`
+	Code        string             `json:"status"`
+	Description string             `json:"description,omitempty"`
+}
+
+type Response struct {
+	Data   interface{}    `json:"data,omitempty"`
+	Status ResponseStatus `json:"status"`
 }
 
 // Struct with MultiformParser return
@@ -33,8 +45,8 @@ type MutiformData struct {
 
 // Global interface
 type Http interface {
-	FinalOutPut(w http.ResponseWriter, resCode int, message string, extraValues interface{})
-	ErrorOutPut(w http.ResponseWriter, resCode int, message string)
+	FinalOutPut(w http.ResponseWriter, httpCode int, resStatus *ResponseStatus, extraValues interface{})
+	ErrorOutPut(w http.ResponseWriter, httpCode int, resStatus *ResponseStatus)
 	BodyParser(w http.ResponseWriter, r *http.Request, requestInterface interface{}) error
 	MultiPartFormParser(w http.ResponseWriter, r *http.Request, values map[string]interface{}, files ...string) (map[string][]*multipart.FileHeader, error)
 	MultiPartFileToBuff(files []*multipart.FileHeader) [][]byte
@@ -61,11 +73,11 @@ func NewHttp(encodedData bool) Http {
 //
 // @param resCode int: Http response code.
 //
-// @param message string: Response message.
+// @param resStatus *ResponseStatus: Response status.
 //
 // @param extraValues interface{}: interface that will be sended on data field.
-func (h *http_implementation) FinalOutPut(w http.ResponseWriter, resCode int, message string, extraValues interface{}) {
-	finalOutPut(w, resCode, message, extraValues)
+func (h *http_implementation) FinalOutPut(w http.ResponseWriter, resCode int, resStatus *ResponseStatus, extraValues interface{}) {
+	finalOutPut(w, resCode, resStatus, extraValues)
 }
 
 // Create an http error response as json string
@@ -74,9 +86,9 @@ func (h *http_implementation) FinalOutPut(w http.ResponseWriter, resCode int, me
 //
 // @param resCode int: Http response code.
 //
-// @param message string: Response message.
-func (h *http_implementation) ErrorOutPut(w http.ResponseWriter, resCode int, message string) {
-	errorOutPut(w, resCode, message)
+// @param resStatus *ResponseStatus: Response status.
+func (h *http_implementation) ErrorOutPut(w http.ResponseWriter, resCode int, resStatus *ResponseStatus) {
+	errorOutPut(w, resCode, resStatus)
 }
 
 // Parse request body data
@@ -250,11 +262,10 @@ func (h *http_implementation) ExtractReqPaginationParameters(r *http.Request) Pa
 }
 
 // Declaring this local function tu use on all utility files
-func finalOutPut(w http.ResponseWriter, resCode int, message string, extraValues interface{}) {
+func finalOutPut(w http.ResponseWriter, resCode int, resStatus *ResponseStatus, extraValues interface{}) {
 	// crete the response interface
-	res := response{
-		Code:    resCode,
-		Message: message,
+	res := Response{
+		Status: *resStatus,
 	}
 
 	// if extra values is not nil -> add it on data field
@@ -331,11 +342,10 @@ func decodeDataIfEncoded(data any, encoded bool, structure *interface{}) error {
 	return nil
 }
 
-func errorOutPut(w http.ResponseWriter, resCode int, message string) {
+func errorOutPut(w http.ResponseWriter, resCode int, resStatus *ResponseStatus) {
 	// crete the response interface
-	res := response{
-		Code:    resCode,
-		Message: message,
+	res := Response{
+		Status: *resStatus,
 	}
 
 	// convert response struct into json string
