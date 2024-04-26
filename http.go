@@ -28,7 +28,7 @@ const (
 
 type ResponseStatus struct {
 	Type        ResponseStatusType `json:"type"`
-	Code        string             `json:"status"`
+	Code        string             `json:"code"`
 	Description string             `json:"description,omitempty"`
 }
 
