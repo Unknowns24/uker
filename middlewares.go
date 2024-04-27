@@ -245,7 +245,7 @@ func (m *middlewares_implementation) GenerateJWT(id string, keeplogin bool, ipAd
 		Value:    token,
 		MaxAge:   int(date.Abs().Seconds()),
 		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: m.cookieSameSite,
 	}
 
 	return token, cookie, nil
