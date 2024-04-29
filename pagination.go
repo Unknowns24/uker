@@ -91,7 +91,7 @@ func (p *Pagination) Paginate(opts PaginationOpts) map[string]interface{} {
 
 	// Apply sorting if provided
 	if p.Sort != "" {
-		if p.SortDir == PAGINATION_ORDER_DESC {
+		if strings.ToLower(p.SortDir) == PAGINATION_ORDER_DESC {
 			query = query.Order(fmt.Sprintf("%s %s", p.Sort, strings.ToUpper(PAGINATION_ORDER_DESC)))
 		} else {
 			query = query.Order(p.Sort)
