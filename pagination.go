@@ -27,6 +27,18 @@ type PaginationOpts struct {
 	TableModel interface{}
 }
 
+type PaginationResult struct {
+	Info    PaginationResultInfo `json:"info"`
+	Results interface{}          `json:"results"`
+}
+
+type PaginationResultInfo struct {
+	Page     int `json:"page"`
+	Total    int `json:"total"`
+	PerPage  int `json:"per_page"`
+	LastPage int `json:"last_page"`
+}
+
 // Server data pagination with specified select
 //
 // @param db *gorm.DB: Database pointer to perform the pagination.
@@ -41,8 +53,8 @@ type PaginationOpts struct {
 //
 // @param result interface{}: Interface of wantend result.
 //
-// @return map[string]interface{}: map with all paginated data
-func (p *Pagination) Paginate(opts PaginationOpts) map[string]interface{} {
+// @return PaginationResult: structure with pagination data
+func (p *Pagination) Paginate(opts PaginationOpts) PaginationResult {
 	// Build a base query without conditions
 	query := opts.DB.Model(opts.TableModel)
 
@@ -122,13 +134,13 @@ func (p *Pagination) Paginate(opts PaginationOpts) map[string]interface{} {
 	// Perform pagination
 	query.Limit(perPage).Offset((page - 1) * perPage).Find(opts.Result)
 
-	return map[string]interface{}{
-		"results": opts.Result,
-		"info": map[string]interface{}{
-			"page":      page,
-			"total":     total,
-			"per_page":  perPage,
-			"last_page": lastPage,
+	return PaginationResult{
+		Results: opts.Result,
+		Info: PaginationResultInfo{
+			Page:     page,
+			Total:    int(total),
+			PerPage:  perPage,
+			LastPage: lastPage,
 		},
 	}
 }

@@ -54,20 +54,12 @@ func TestPaginate(t *testing.T) {
 	paginationResult := noPaginateParams.Paginate(pagOneParams)
 
 	// Check if the pagination result is not nil
-	if paginationResult == nil {
+	if paginationResult.Results == nil {
 		t.Errorf("Pagination result is nil")
 	}
 
-	// Check if the pagination result has the correct keys
-	expectedKeys := []string{"page", "total", "per_page", "last_page", "data"}
-	for _, key := range expectedKeys {
-		if _, ok := paginationResult[key]; !ok {
-			t.Errorf("Pagination result does not have key: %s", key)
-		}
-	}
-
 	// Get all products inside data
-	jsonData, _ := json.Marshal(paginationResult["data"])
+	jsonData, _ := json.Marshal(paginationResult.Results)
 
 	var resProducts []TestProduct
 	json.Unmarshal(jsonData, &resProducts)
@@ -90,12 +82,12 @@ func TestPaginate(t *testing.T) {
 	}
 	paginationResult2 := paginateParams.Paginate(pagTwoParams)
 
-	if paginationResult2["last_page"] != 2 {
+	if paginationResult2.Info.LastPage != 2 {
 		t.Error("Per page not working")
 	}
 
-	if paginationResult2["total"] != int64(2) {
-		t.Errorf("Some clause is not working, expected total 2 -> %d received", paginationResult2["total"])
+	if paginationResult2.Info.Total != 2 {
+		t.Errorf("Some clause is not working, expected total 2 -> %d received", paginationResult2.Info.Total)
 	}
 
 	err = mock.Close()
