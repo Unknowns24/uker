@@ -123,10 +123,12 @@ func (p *Pagination) Paginate(opts PaginationOpts) map[string]interface{} {
 	query.Limit(perPage).Offset((page - 1) * perPage).Find(opts.Result)
 
 	return map[string]interface{}{
-		"page":      page,
-		"total":     total,
-		"per_page":  perPage,
-		"last_page": lastPage,
-		"data":      opts.Result,
+		"results": opts.Result,
+		"info": map[string]interface{}{
+			"page":      page,
+			"total":     total,
+			"per_page":  perPage,
+			"last_page": lastPage,
+		},
 	}
 }
