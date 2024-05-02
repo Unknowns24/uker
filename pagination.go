@@ -73,24 +73,7 @@ func (p *Pagination) Paginate(opts PaginationOpts) PaginationResult {
 		modelType := reflect.TypeOf(opts.Result).Elem().Elem()
 
 		// Start with an empty condition
-		searchCondition := ""
-
-		// Iterate over the fields of the model
-		for i := 0; i < modelType.NumField(); i++ {
-			fieldName := modelType.Field(i).Name
-
-			// Ignore the "id" field
-			if strings.ToLower(fieldName) == "id" {
-				continue
-			}
-
-			// Add a condition for the current field
-			if searchCondition == "" {
-				searchCondition = fieldName + " LIKE " + "'%%" + p.Search + "%%'"
-			} else {
-				searchCondition += " OR " + fieldName + " LIKE " + "'%%" + p.Search + "%%'"
-			}
-		}
+		searchCondition := p.attachSearch(modelType)
 
 		// Combine the search condition with the existing condition using "AND"
 		query = query.Where(searchCondition)
@@ -143,4 +126,41 @@ func (p *Pagination) Paginate(opts PaginationOpts) PaginationResult {
 			LastPage: lastPage,
 		},
 	}
+}
+
+func (p *Pagination) attachSearch(modelType reflect.Type) string {
+	searchCondition := ""
+
+	// Iterate over the fields of the model
+	for i := 0; i < modelType.NumField(); i++ {
+		fmt.Println(modelType.Field(i).Name, modelType.Field(i).Type.Kind())
+
+		if modelType.Field(i).Type.Kind() == reflect.Struct {
+			p.attachSearch(modelType.Field(i).Type)
+			continue
+		}
+
+		if modelType.Field(i).Type.Kind() == reflect.Slice {
+			continue
+		}
+
+		fieldName := modelType.Field(i).Name
+
+		sqlFieldWords := Str().SplitByUpperCase(fieldName)
+		fieldName = strings.ToLower(strings.Join(sqlFieldWords, "_"))
+
+		// Ignore the "id" field
+		if fieldName == "id" {
+			continue
+		}
+
+		// Add a condition for the current field
+		if searchCondition == "" {
+			searchCondition = fieldName + " LIKE " + "'%%" + p.Search + "%%'"
+		} else {
+			searchCondition += " OR " + fieldName + " LIKE " + "'%%" + p.Search + "%%'"
+		}
+	}
+
+	return searchCondition
 }

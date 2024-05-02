@@ -1,6 +1,8 @@
 package uker
 
-import "strings"
+import (
+	"strings"
+)
 
 // Global interface
 type str interface {
@@ -26,6 +28,13 @@ type str interface {
 	//
 	// @return bool: if string contains at least one of the invalid chars will return true
 	HasNoValidChars(str string) bool
+
+	// Split string on uppercases
+	//
+	// @param str string: String to split.
+	//
+	// @return []string: splitted string
+	SplitByUpperCase(str string) []string
 }
 
 // Local struct to be implmented
@@ -74,4 +83,21 @@ func (s *str_implementation) SanitizeString(str string) string {
 	parsedStr = strings.ToLower(strings.ReplaceAll(parsedStr, " ", "_"))
 
 	return parsedStr
+}
+
+func (s *str_implementation) SplitByUpperCase(str string) []string {
+	var words []string
+	var word string
+
+	for i, char := range str {
+		if i > 0 && 'A' <= char && char <= 'Z' {
+			words = append(words, word)
+			word = string(char)
+		} else {
+			word += string(char)
+		}
+	}
+	words = append(words, word)
+
+	return words
 }
