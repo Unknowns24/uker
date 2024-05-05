@@ -133,8 +133,6 @@ func (p *Pagination) attachSearch(modelType reflect.Type) string {
 
 	// Iterate over the fields of the model
 	for i := 0; i < modelType.NumField(); i++ {
-		fmt.Println(modelType.Field(i).Name, modelType.Field(i).Type.Kind())
-
 		if modelType.Field(i).Type.Kind() == reflect.Struct {
 			p.attachSearch(modelType.Field(i).Type)
 			continue
