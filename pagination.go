@@ -11,11 +11,13 @@ import (
 )
 
 type Pagination struct {
-	Page    string
-	Sort    string
-	Search  string
-	PerPage string
-	SortDir string
+	Page       string
+	Sort       string
+	Search     string
+	PerPage    string
+	SortDir    string
+	WhereField string
+	WhereValue string
 }
 
 type PaginationOpts struct {
@@ -65,6 +67,10 @@ func (p *Pagination) Paginate(opts PaginationOpts) PaginationResult {
 
 	if opts.Where != "" {
 		query = query.Where(opts.Where)
+	}
+
+	if p.WhereField != "" && p.WhereValue != "" {
+		query = query.Where(fmt.Sprintf("%s = ?", p.WhereField), p.WhereValue)
 	}
 
 	// Apply search if provided

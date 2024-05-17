@@ -45,13 +45,15 @@ const (
 
 // pagination constants
 const (
-	PAGINATION_ORDER_ASC      = "asc"
-	PAGINATION_ORDER_DESC     = "desc"
-	PAGINATION_QUERY_SORT     = "sort"
-	PAGINATION_QUERY_PAGE     = "page"
-	PAGINATION_QUERY_SEARCH   = "search"
-	PAGINATION_QUERY_PERPAGE  = "per_page"
-	PAGINATION_QUERY_SORT_DIR = "sort_dir"
+	PAGINATION_ORDER_ASC         = "asc"
+	PAGINATION_ORDER_DESC        = "desc"
+	PAGINATION_QUERY_SORT        = "sort"
+	PAGINATION_QUERY_PAGE        = "page"
+	PAGINATION_QUERY_SEARCH      = "search"
+	PAGINATION_QUERY_PERPAGE     = "per_page"
+	PAGINATION_QUERY_SORT_DIR    = "sort_dir"
+	PAGINATION_QUERY_WHERE_FIELD = "where_field"
+	PAGINATION_QUERY_WHERE_VALUE = "where_value"
 )
 
 // middleware contants

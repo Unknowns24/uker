@@ -240,11 +240,13 @@ func (h *http_implementation) FirstMultiPartFileToBuff(files []*multipart.FileHe
 func (h *http_implementation) ExtractReqPaginationParameters(r *http.Request) Pagination {
 	queryParams := r.URL.Query()
 	pagination := Pagination{
-		Search:  queryParams.Get(PAGINATION_QUERY_SEARCH),
-		Sort:    queryParams.Get(PAGINATION_QUERY_SORT),
-		SortDir: queryParams.Get(PAGINATION_QUERY_SORT_DIR),
-		Page:    queryParams.Get(PAGINATION_QUERY_PAGE),
-		PerPage: queryParams.Get(PAGINATION_QUERY_PERPAGE),
+		Page:       queryParams.Get(PAGINATION_QUERY_PAGE),
+		Sort:       queryParams.Get(PAGINATION_QUERY_SORT),
+		SortDir:    queryParams.Get(PAGINATION_QUERY_SORT_DIR),
+		Search:     queryParams.Get(PAGINATION_QUERY_SEARCH),
+		PerPage:    queryParams.Get(PAGINATION_QUERY_PERPAGE),
+		WhereField: queryParams.Get(PAGINATION_QUERY_WHERE_FIELD),
+		WhereValue: queryParams.Get(PAGINATION_QUERY_WHERE_VALUE),
 	}
 
 	// Si los valores por defecto no están definidos, asigna los valores por defecto
