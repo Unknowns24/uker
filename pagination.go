@@ -139,12 +139,17 @@ func (p *Pagination) attachSearch(modelType reflect.Type) string {
 
 	// Iterate over the fields of the model
 	for i := 0; i < modelType.NumField(); i++ {
-		if modelType.Field(i).Type.Kind() == reflect.Struct {
-			p.attachSearch(modelType.Field(i).Type)
+		if modelType.Field(i).Type.Kind() == reflect.Slice {
 			continue
 		}
 
-		if modelType.Field(i).Type.Kind() == reflect.Slice {
+		if modelType.Field(i).Type.Kind() == reflect.Struct && modelType.Field(i).Anonymous {
+			subSearchCondition := p.attachSearch(modelType.Field(i).Type)
+			if searchCondition == "" {
+				searchCondition = subSearchCondition
+			} else {
+				searchCondition += " OR " + subSearchCondition
+			}
 			continue
 		}
 
@@ -152,6 +157,10 @@ func (p *Pagination) attachSearch(modelType reflect.Type) string {
 
 		sqlFieldWords := Str().SplitByUpperCase(fieldName)
 		fieldName = strings.ToLower(strings.Join(sqlFieldWords, "_"))
+
+		if modelType.Field(i).Name == "ID" {
+			fieldName = "id"
+		}
 
 		// Add a condition for the current field
 		if searchCondition == "" {
