@@ -139,6 +139,13 @@ func (p *Pagination) attachSearch(modelType reflect.Type) string {
 
 	// Iterate over the fields of the model
 	for i := 0; i < modelType.NumField(); i++ {
+		tagValue := modelType.Field(i).Tag.Get(UKER_STRUCT_TAG)
+		gormTagValues := modelType.Field(i).Tag.Get("gorm")
+
+		if strings.Contains(tagValue, "-") || strings.Contains(gormTagValues, "foreignKey") {
+			continue
+		}
+
 		if modelType.Field(i).Type.Kind() == reflect.Slice {
 			continue
 		}
