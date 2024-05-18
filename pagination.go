@@ -153,11 +153,6 @@ func (p *Pagination) attachSearch(modelType reflect.Type) string {
 		sqlFieldWords := Str().SplitByUpperCase(fieldName)
 		fieldName = strings.ToLower(strings.Join(sqlFieldWords, "_"))
 
-		// Ignore the "id" field
-		if fieldName == "id" {
-			continue
-		}
-
 		// Add a condition for the current field
 		if searchCondition == "" {
 			searchCondition = fieldName + " LIKE " + "'%%" + p.Search + "%%'"
