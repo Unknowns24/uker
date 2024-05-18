@@ -66,6 +66,7 @@ type Middlewares interface {
 type middlewares_implementation struct {
 	secret         string
 	errors         *MiddlewareErrors
+	validateIp     bool
 	cookieSameSite http.SameSite
 }
 
@@ -78,6 +79,7 @@ type MiddlewareErrors struct {
 
 type MiddlewareOptions struct {
 	Errors         MiddlewareErrors
+	ValidateSameIp bool
 	CookieSameSite http.SameSite
 }
 
@@ -111,6 +113,7 @@ func NewMiddlewares(jwtKey string, opts *MiddlewareOptions) Middlewares {
 	return &middlewares_implementation{
 		secret:         jwtKey,
 		errors:         errors,
+		validateIp:     opts.ValidateSameIp,
 		cookieSameSite: sameSite,
 	}
 }
@@ -137,7 +140,7 @@ func (m *middlewares_implementation) NotAuthenticated(next http.Handler) http.Ha
 		id := claims[JWT_CLAIM_KEY_ISSUER].(string)
 		ip := data[JWT_CLAIM_KEY_IP].(string)
 
-		if id == "" || (ip != r.Header.Get(HTTP_HEADER_CLOUDFLARE_USERIP) && ip != r.RemoteAddr) {
+		if id == "" || (m.validateIp && (ip != r.Header.Get(HTTP_HEADER_CLOUDFLARE_USERIP) && ip != r.RemoteAddr)) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -175,7 +178,7 @@ func (m *middlewares_implementation) IsAuthenticated(next http.Handler) http.Han
 
 		id := claims[JWT_CLAIM_KEY_ISSUER].(string)
 
-		if id == "" || (ip != r.Header.Get(HTTP_HEADER_CLOUDFLARE_USERIP) && ip != r.RemoteAddr) {
+		if id == "" || (m.validateIp && (ip != r.Header.Get(HTTP_HEADER_CLOUDFLARE_USERIP) && ip != r.RemoteAddr)) {
 			errorOutPut(w, http.StatusUnauthorized, m.errors.InvalidJWTUser)
 			return
 		}
@@ -207,7 +210,7 @@ func (m *middlewares_implementation) OptionalAuthenticated(next http.Handler) ht
 		ip := data[JWT_CLAIM_KEY_IP].(string)
 		id := claims[JWT_CLAIM_KEY_ISSUER].(string)
 
-		if id == "" || (ip != r.Header.Get(HTTP_HEADER_CLOUDFLARE_USERIP) && ip != r.RemoteAddr) {
+		if id == "" || (m.validateIp && (ip != r.Header.Get(HTTP_HEADER_CLOUDFLARE_USERIP) && ip != r.RemoteAddr)) {
 			next.ServeHTTP(w, r)
 			return
 		}
