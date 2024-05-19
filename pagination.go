@@ -152,7 +152,7 @@ func (p *Pagination) attachSearch(modelType reflect.Type, searchPrefix string) s
 		}
 
 		if modelType.Field(i).Type.Kind() == reflect.Struct && modelType.Field(i).Anonymous {
-			subSearchCondition := p.attachSearch(modelType.Field(i).Type, searchCondition)
+			subSearchCondition := p.attachSearch(modelType.Field(i).Type, searchPrefix)
 			if searchCondition == "" {
 				searchCondition = subSearchCondition
 			} else {
