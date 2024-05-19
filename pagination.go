@@ -143,7 +143,7 @@ func (p *Pagination) attachSearch(modelType reflect.Type, searchPrefix string) s
 		tagValue := modelType.Field(i).Tag.Get(UKER_STRUCT_TAG)
 		gormTagValues := modelType.Field(i).Tag.Get("gorm")
 
-		if strings.Contains(tagValue, "-") || strings.Contains(gormTagValues, "foreignKey") {
+		if strings.Contains(tagValue, "-") || strings.Contains(strings.ToLower(gormTagValues), "foreignkey") {
 			continue
 		}
 
