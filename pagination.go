@@ -25,6 +25,7 @@ type PaginationOpts struct {
 	Join       string
 	Where      string
 	Select     string
+	SearchPfx  string
 	Result     interface{}
 	TableModel interface{}
 }
@@ -79,7 +80,7 @@ func (p *Pagination) Paginate(opts PaginationOpts) PaginationResult {
 		modelType := reflect.TypeOf(opts.Result).Elem().Elem()
 
 		// Start with an empty condition
-		searchCondition := p.attachSearch(modelType)
+		searchCondition := p.attachSearch(modelType, opts.SearchPfx)
 
 		// Combine the search condition with the existing condition using "AND"
 		query = query.Where(searchCondition)
@@ -134,7 +135,7 @@ func (p *Pagination) Paginate(opts PaginationOpts) PaginationResult {
 	}
 }
 
-func (p *Pagination) attachSearch(modelType reflect.Type) string {
+func (p *Pagination) attachSearch(modelType reflect.Type, searchPrefix string) string {
 	searchCondition := ""
 
 	// Iterate over the fields of the model
@@ -151,7 +152,7 @@ func (p *Pagination) attachSearch(modelType reflect.Type) string {
 		}
 
 		if modelType.Field(i).Type.Kind() == reflect.Struct && modelType.Field(i).Anonymous {
-			subSearchCondition := p.attachSearch(modelType.Field(i).Type)
+			subSearchCondition := p.attachSearch(modelType.Field(i).Type, searchCondition)
 			if searchCondition == "" {
 				searchCondition = subSearchCondition
 			} else {
@@ -167,6 +168,10 @@ func (p *Pagination) attachSearch(modelType reflect.Type) string {
 
 		if modelType.Field(i).Name == "ID" {
 			fieldName = "id"
+		}
+
+		if searchPrefix != "" {
+			fieldName = fmt.Sprintf("%s.%s", searchPrefix, fieldName)
 		}
 
 		// Add a condition for the current field
