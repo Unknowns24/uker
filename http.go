@@ -175,8 +175,6 @@ func (h *http_implementation) MultiPartFormParser(w http.ResponseWriter, r *http
 			parsedFiles[file] = MultipartFormFileHeaders
 			continue
 		}
-
-		return nil, fmt.Errorf("missing file for key %s", file)
 	}
 
 	return parsedFiles, nil
