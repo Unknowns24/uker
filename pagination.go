@@ -21,15 +21,16 @@ type Pagination struct {
 }
 
 type PaginationOpts struct {
-	DB           *gorm.DB
-	Join         string
-	Where        string
-	Select       string
-	SortPfx      string
-	SearchPfx    string
-	DynamicWhere bool
-	Result       interface{}
-	TableModel   interface{}
+	DB              *gorm.DB
+	Join            string
+	Where           string
+	Select          string
+	SortPfx         string
+	SearchPfx       string
+	DynamicWhere    bool
+	DynamicWherePfx string
+	Result          interface{}
+	TableModel      interface{}
 }
 
 type PaginationResult struct {
@@ -73,7 +74,11 @@ func (p *Pagination) Paginate(opts PaginationOpts) PaginationResult {
 	}
 
 	if opts.DynamicWhere && p.WhereField != "" && p.WhereValue != "" {
-		query = query.Where(fmt.Sprintf("%s = ?", p.WhereField), p.WhereValue)
+		if opts.DynamicWherePfx != "" {
+			query = query.Where(fmt.Sprintf("%s.%s = ?", opts.DynamicWherePfx, p.WhereField), p.WhereValue)
+		} else {
+			query = query.Where(fmt.Sprintf("%s = ?", p.WhereField), p.WhereValue)
+		}
 	}
 
 	// Apply search if provided
