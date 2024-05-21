@@ -25,6 +25,7 @@ type PaginationOpts struct {
 	Join       string
 	Where      string
 	Select     string
+	SortPfx    string
 	SearchPfx  string
 	Result     interface{}
 	TableModel interface{}
@@ -93,6 +94,10 @@ func (p *Pagination) Paginate(opts PaginationOpts) PaginationResult {
 
 	// Apply sorting if provided
 	if p.Sort != "" {
+		if opts.SortPfx != "" {
+			p.Sort = fmt.Sprintf("%s.%s", opts.SortPfx, p.Sort)
+		}
+
 		if strings.ToLower(p.SortDir) == PAGINATION_ORDER_DESC {
 			query = query.Order(fmt.Sprintf("%s %s", p.Sort, strings.ToUpper(PAGINATION_ORDER_DESC)))
 		} else {
