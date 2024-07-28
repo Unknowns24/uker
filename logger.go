@@ -1,102 +1,59 @@
 package uker
 
 import (
+	"encoding/json"
 	"fmt"
-	"os"
-	"strings"
 
-	"github.com/rs/zerolog"
+	"github.com/fluent/fluent-logger-golang/fluent"
+	"github.com/sirupsen/logrus"
 )
 
-// Interface -.
-type Interface interface {
-	Debug(message interface{}, args ...interface{})
-	Info(message string, args ...interface{})
-	Warn(message string, args ...interface{})
-	Error(message interface{}, args ...interface{})
-	Fatal(message interface{}, args ...interface{})
+type fluentdWriter struct {
+	tag    string
+	logger *fluent.Fluent
 }
 
-// Logger -.
-type Logger struct {
-	logger *zerolog.Logger
-}
-
-var _ Interface = (*Logger)(nil)
-
-// New -.
-func NewLogger(level string) *Logger {
-	var l zerolog.Level
-
-	switch strings.ToLower(level) {
-	case LOGGER_LEVEL_INFO:
-		l = zerolog.InfoLevel
-	case LOGGER_LEVEL_WARN:
-		l = zerolog.WarnLevel
-	case LOGGER_LEVEL_ERROR:
-		l = zerolog.ErrorLevel
-	case LOGGER_LEVEL_DEBUG:
-		l = zerolog.DebugLevel
-	default:
-		l = zerolog.InfoLevel
+func (f *fluentdWriter) Write(p []byte) (n int, err error) {
+	var data map[string]interface{}
+	err = json.Unmarshal(p, &data)
+	if err != nil {
+		return 0, err
 	}
 
-	zerolog.SetGlobalLevel(l)
-
-	skipFrameCount := 3
-	logger := zerolog.New(os.Stdout).With().Timestamp().CallerWithSkipFrameCount(zerolog.CallerSkipFrameCount + skipFrameCount).Logger()
-
-	return &Logger{
-		logger: &logger,
+	err = f.logger.Post(f.tag, data)
+	if err != nil {
+		return 0, err
 	}
+	return len(p), nil
 }
 
-// Debug -.
-func (l *Logger) Debug(message interface{}, args ...interface{}) {
-	l.msg(LOGGER_LEVEL_DEBUG, message, args...)
+type LoggerConfig struct {
+	LogFormatter        logrus.Formatter
+	FluentPostTag       string
+	FluentConfiguration *fluent.Config
 }
 
-// Info -.
-func (l *Logger) Info(message string, args ...interface{}) {
-	l.log(message, args...)
-}
+func NewLogger(c LoggerConfig) (*logrus.Logger, error) {
+	log := logrus.New()
 
-// Warn -.
-func (l *Logger) Warn(message string, args ...interface{}) {
-	l.log(message, args...)
-}
+	// Create a Fluentd logger
+	fluentInstance, err := fluent.New(*c.FluentConfiguration)
 
-// Error -.
-func (l *Logger) Error(message interface{}, args ...interface{}) {
-	if l.logger.GetLevel() == zerolog.DebugLevel {
-		l.Debug(message, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to Fluentd: %v", err)
 	}
 
-	l.msg(LOGGER_LEVEL_ERROR, message, args...)
-}
+	defer fluentInstance.Close()
 
-// Fatal -.
-func (l *Logger) Fatal(message interface{}, args ...interface{}) {
-	l.msg(LOGGER_LEVEL_FATAL, message, args...)
-
-	os.Exit(1)
-}
-
-func (l *Logger) log(message string, args ...interface{}) {
-	if len(args) == 0 {
-		l.logger.Info().Msg(message)
-	} else {
-		l.logger.Info().Msgf(message, args...)
+	// Create a FluentdWriter
+	fluentWriter := &fluentdWriter{
+		tag:    c.FluentPostTag,
+		logger: fluentInstance,
 	}
-}
 
-func (l *Logger) msg(level string, message interface{}, args ...interface{}) {
-	switch msg := message.(type) {
-	case error:
-		l.log(msg.Error(), args...)
-	case string:
-		l.log(msg, args...)
-	default:
-		l.log(fmt.Sprintf("%s message %v has unknown type %v", level, message, msg), args...)
-	}
+	// Set up logrus to use the FluentdWriter
+	log.SetFormatter(c.LogFormatter)
+	log.SetOutput(fluentWriter)
+
+	return log, nil
 }
