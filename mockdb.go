@@ -29,7 +29,7 @@ func (m *MockDB) Create() (*gorm.DB, error) {
 
 	// Validate if gorm instance does not fail
 	if err != nil {
-		return nil, fmt.Errorf("Error creating GORM DB: %v", err)
+		return nil, fmt.Errorf("error creating GORM DB: %v", err)
 	}
 
 	m.database = db
