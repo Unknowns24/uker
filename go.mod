@@ -18,6 +18,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.17 // indirect
 	github.com/rs/zerolog v1.31.0
 	github.com/sirupsen/logrus v1.9.3
+	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
 	golang.org/x/sys v0.15.0 // indirect
 	gorm.io/driver/mysql v1.5.1
 	gorm.io/driver/sqlite v1.5.3
