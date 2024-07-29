@@ -2,7 +2,6 @@ package uker
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/fluent/fluent-logger-golang/fluent"
 	"github.com/sirupsen/logrus"
@@ -28,32 +27,23 @@ func (f *fluentdWriter) Write(p []byte) (n int, err error) {
 }
 
 type LoggerConfig struct {
-	LogFormatter        logrus.Formatter
-	FluentPostTag       string
-	FluentConfiguration *fluent.Config
+	LogFormatter     logrus.Formatter
+	FluentPostTag    string
+	FluentConnection *fluent.Fluent
 }
 
-func NewLogger(c LoggerConfig) (*logrus.Logger, error) {
+func NewLogger(c LoggerConfig) *logrus.Logger {
 	log := logrus.New()
-
-	// Create a Fluentd logger
-	fluentInstance, err := fluent.New(*c.FluentConfiguration)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to Fluentd: %v", err)
-	}
-
-	defer fluentInstance.Close()
 
 	// Create a FluentdWriter
 	fluentWriter := &fluentdWriter{
 		tag:    c.FluentPostTag,
-		logger: fluentInstance,
+		logger: c.FluentConnection,
 	}
 
 	// Set up logrus to use the FluentdWriter
 	log.SetFormatter(c.LogFormatter)
 	log.SetOutput(fluentWriter)
 
-	return log, nil
+	return log
 }
