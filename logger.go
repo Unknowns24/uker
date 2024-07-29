@@ -9,6 +9,26 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+type UkerFluentMetadata struct {
+	Tag         string
+	Source      string
+	ServiceName string
+	Application string
+}
+
+type UkerLogger struct {
+	config *LoggerConfig
+	writer *fluentdWriter
+	Logger *logrus.Logger
+}
+
+type LoggerConfig struct {
+	FluentMetadata     UkerFluentMetadata
+	FluentConfig       fluent.Config
+	LogFormatter       logrus.Formatter
+	TestConnectionTime time.Duration
+}
+
 type fluentdWriter struct {
 	conn   *fluent.Fluent
 	config *LoggerConfig
@@ -22,36 +42,18 @@ func (fw *fluentdWriter) Write(p []byte) (n int, err error) {
 	}
 
 	// Adding metadata fields if not empty inside data struct
-	metadataFields := map[string]string{"application": fw.config.Application, "servicename": fw.config.ServiceName, "source": fw.config.Source}
+	metadataFields := map[string]string{"application": fw.config.FluentMetadata.Application, "servicename": fw.config.FluentMetadata.ServiceName, "source": fw.config.FluentMetadata.Source}
 	for label, value := range metadataFields {
 		if value != "" {
 			data[label] = value
 		}
 	}
 
-	err = fw.conn.Post(fw.config.Tag, data)
+	err = fw.conn.Post(fw.config.FluentMetadata.Tag, data)
 	if err != nil {
 		return 0, err
 	}
 	return len(p), nil
-}
-
-type LoggerConfig struct {
-	FluentConfig       fluent.Config
-	LogFormatter       logrus.Formatter
-	TestConnectionTime time.Duration
-
-	// Post metadata info
-	Tag         string
-	Source      string
-	ServiceName string
-	Application string
-}
-
-type UkerLogger struct {
-	config *LoggerConfig
-	writer *fluentdWriter
-	Logger *logrus.Logger
 }
 
 func NewLogger(c *LoggerConfig) *UkerLogger {
