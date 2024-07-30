@@ -26,6 +26,7 @@ type LoggerConfig struct {
 	FluentMetadata     UkerFluentMetadata
 	FluentConfig       fluent.Config
 	LogFormatter       logrus.Formatter
+	LogOnConsole       bool
 	TestConnectionTime time.Duration
 }
 
@@ -47,6 +48,10 @@ func (fw *fluentdWriter) Write(p []byte) (n int, err error) {
 		if value != "" {
 			data[label] = value
 		}
+	}
+
+	if fw.config.LogOnConsole {
+		fmt.Println(data["msg"])
 	}
 
 	err = fw.conn.Post(fw.config.FluentMetadata.Tag, data)
