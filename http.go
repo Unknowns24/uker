@@ -247,6 +247,14 @@ func (h *http_implementation) ExtractReqPaginationParameters(r *http.Request) Pa
 		WhereValue: queryParams.Get(PAGINATION_QUERY_WHERE_VALUE),
 	}
 
+	// Validate if search has the base64 prefix and decode it in case of provided
+	if pagination.Search != "" && strings.HasPrefix(pagination.Search, "b64!") {
+		decoded, err := base64.StdEncoding.DecodeString(strings.Replace(pagination.Search, "b64!", "", -1))
+		if err == nil {
+			pagination.Search = string(decoded)
+		}
+	}
+
 	// Si los valores por defecto no están definidos, asigna los valores por defecto
 	if pagination.SortDir == "" {
 		pagination.SortDir = PAGINATION_ORDER_ASC
