@@ -87,10 +87,10 @@ func (p *Pagination) Paginate(opts PaginationOpts) PaginationResult {
 		modelType := reflect.TypeOf(opts.Result).Elem().Elem()
 
 		// Start with an empty condition
-		searchCondition := p.attachSearch(modelType, opts.SearchPfx)
+		searchCondition, searchValues := p.attachSearch(modelType, opts.SearchPfx)
 
 		// Combine the search condition with the existing condition using "AND"
-		query = query.Where(searchCondition)
+		query = query.Where(searchCondition, searchValues...)
 	}
 
 	// Apply join if provided
@@ -98,28 +98,31 @@ func (p *Pagination) Paginate(opts PaginationOpts) PaginationResult {
 		query = query.Joins(opts.Join)
 	}
 
-	// Apply sorting if provided
-	if p.Sort != "" {
-		if opts.SortPfx != "" {
-			p.Sort = fmt.Sprintf("%s.%s", opts.SortPfx, p.Sort)
-		}
+	// Apply sorting
+	p.SortDir = strings.ToLower(p.SortDir)
+	if p.SortDir != "asc" && p.SortDir != "desc" {
+		p.SortDir = "asc"
+	}
 
-		if strings.ToLower(p.SortDir) == PAGINATION_ORDER_DESC {
-			query = query.Order(fmt.Sprintf("%s %s", p.Sort, strings.ToUpper(PAGINATION_ORDER_DESC)))
-		} else {
-			query = query.Order(p.Sort)
+	if p.Sort != "" {
+		sortField := p.Sort
+		if opts.SortPfx != "" {
+			sortField = fmt.Sprintf("%s.%s", opts.SortPfx, p.Sort)
 		}
+		query = query.Order(fmt.Sprintf("%s %s", sortField, strings.ToUpper(p.SortDir)))
 	}
 
 	// Convert URL parameters to integers
 	page, err := strconv.Atoi(p.Page)
-	if err != nil {
+	if err != nil || page < 1 {
 		page = 1
 	}
 
 	perPage, err := strconv.Atoi(p.PerPage)
-	if err != nil {
+	if err != nil || perPage < 1 {
 		perPage = 10
+	} else if perPage > 100 { // max limit of perPage
+		perPage = 100
 	}
 
 	// Perform the query and count the total records
@@ -146,52 +149,83 @@ func (p *Pagination) Paginate(opts PaginationOpts) PaginationResult {
 	}
 }
 
-func (p *Pagination) attachSearch(modelType reflect.Type, searchPrefix string) string {
+func (p *Pagination) attachSearch(modelType reflect.Type, searchPrefix string) (string, []interface{}) {
 	searchCondition := ""
+	var searchValues []interface{}
 
-	// Iterate over the fields of the model
-	for i := 0; i < modelType.NumField(); i++ {
-		tagValue := modelType.Field(i).Tag.Get(UKER_STRUCT_TAG)
-		gormTagValues := modelType.Field(i).Tag.Get("gorm")
+	// Split the search value by ";"
+	searchTerms := strings.Split(p.Search, ";")
 
-		if strings.Contains(tagValue, "-") || strings.Contains(strings.ToLower(gormTagValues), "foreignkey") {
+	// Iterate over the split search terms
+	for _, searchTerm := range searchTerms {
+		searchTerm = strings.TrimSpace(searchTerm) // Remove unnecessary spaces
+		if searchTerm == "" {
 			continue
 		}
 
-		if modelType.Field(i).Type.Kind() == reflect.Slice {
-			continue
-		}
+		// Generate the search condition for the current search term
+		currentCondition := ""
 
-		if modelType.Field(i).Type.Kind() == reflect.Struct && modelType.Field(i).Anonymous {
-			subSearchCondition := p.attachSearch(modelType.Field(i).Type, searchPrefix)
-			if searchCondition == "" {
-				searchCondition = subSearchCondition
-			} else {
-				searchCondition += " OR " + subSearchCondition
+		// Iterate over the fields of the model
+		for i := 0; i < modelType.NumField(); i++ {
+			tagValue := modelType.Field(i).Tag.Get(UKER_STRUCT_TAG)
+			gormTagValues := modelType.Field(i).Tag.Get("gorm")
+
+			// Skip the field if it has the tag `uker:"-"` or `gorm:"foreignkey"`
+			if strings.Contains(tagValue, "-") || strings.Contains(strings.ToLower(gormTagValues), "foreignkey") {
+				continue
 			}
-			continue
+
+			// Skip the field if it is a slice
+			if modelType.Field(i).Type.Kind() == reflect.Slice {
+				continue
+			}
+
+			// Recursively process embedded anonymous struct fields
+			if modelType.Field(i).Type.Kind() == reflect.Struct && modelType.Field(i).Anonymous {
+				subCondition, subValues := p.attachSearch(modelType.Field(i).Type, searchPrefix)
+				if currentCondition == "" {
+					currentCondition = subCondition
+				} else {
+					currentCondition += " OR " + subCondition
+				}
+				searchValues = append(searchValues, subValues...)
+				continue
+			}
+
+			// Convert the field name to a SQL-friendly format
+			fieldName := modelType.Field(i).Name
+			sqlFieldWords := Str().SplitByUpperCase(fieldName)
+			fieldName = strings.ToLower(strings.Join(sqlFieldWords, "_"))
+
+			// Special case for the "ID" field
+			if modelType.Field(i).Name == "ID" {
+				fieldName = "id"
+			}
+
+			// Add a prefix to the field name if specified
+			if searchPrefix != "" {
+				fieldName = fmt.Sprintf("%s.%s", searchPrefix, fieldName)
+			}
+
+			// Add a condition for the current field
+			if currentCondition == "" {
+				currentCondition = fmt.Sprintf("%s LIKE ?", fieldName)
+			} else {
+				currentCondition += fmt.Sprintf(" OR %s LIKE ?", fieldName)
+			}
+			searchValues = append(searchValues, "%"+searchTerm+"%")
 		}
 
-		fieldName := modelType.Field(i).Name
-
-		sqlFieldWords := Str().SplitByUpperCase(fieldName)
-		fieldName = strings.ToLower(strings.Join(sqlFieldWords, "_"))
-
-		if modelType.Field(i).Name == "ID" {
-			fieldName = "id"
-		}
-
-		if searchPrefix != "" {
-			fieldName = fmt.Sprintf("%s.%s", searchPrefix, fieldName)
-		}
-
-		// Add a condition for the current field
-		if searchCondition == "" {
-			searchCondition = fieldName + " LIKE " + "'%%" + p.Search + "%%'"
-		} else {
-			searchCondition += " OR " + fieldName + " LIKE " + "'%%" + p.Search + "%%'"
+		// Add the generated condition for this search term
+		if currentCondition != "" {
+			if searchCondition == "" {
+				searchCondition = fmt.Sprintf("(%s)", currentCondition)
+			} else {
+				searchCondition += fmt.Sprintf(" AND (%s)", currentCondition)
+			}
 		}
 	}
 
-	return searchCondition
+	return searchCondition, searchValues
 }
