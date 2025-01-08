@@ -123,8 +123,8 @@ func (h *http_implementation) BodyParser(w http.ResponseWriter, r *http.Request,
 	}
 
 	// Check if required values on valueInterface are not nil
-	if existAllRequiredParams := requiredParamsExists(requestInterface); !existAllRequiredParams {
-		return errors.New(ERROR_HTTP_MISSING_PARAMS)
+	if missingRequiredParamError := requiredParamsExists(requestInterface); missingRequiredParamError != nil {
+		return fmt.Errorf("missing required parameter: %s", missingRequiredParamError.Error())
 	}
 
 	return nil
@@ -160,8 +160,8 @@ func (h *http_implementation) MultiPartFormParser(w http.ResponseWriter, r *http
 		}
 
 		// Check if required values on valueInterface are not nil
-		if existAllRequiredParams := requiredParamsExists(valueInterface); !existAllRequiredParams {
-			return nil, fmt.Errorf("missing required parameters in valueInterface")
+		if missingRequiredParamError := requiredParamsExists(valueInterface); missingRequiredParamError != nil {
+			return nil, fmt.Errorf("missing required parameters in valueInterface: %s", missingRequiredParamError.Error())
 		}
 	}
 
@@ -292,7 +292,7 @@ func finalOutPut(w http.ResponseWriter, resCode int, resStatus *ResponseStatus, 
 	}
 }
 
-func requiredParamsExists(x interface{}) bool {
+func requiredParamsExists(x interface{}) error {
 	interfaceType := reflect.TypeOf(x).Elem()
 	interfaceValues := reflect.ValueOf(x).Elem()
 
@@ -302,12 +302,12 @@ func requiredParamsExists(x interface{}) bool {
 
 		if strings.Contains(tagValue, UKER_STRUCT_TAG_REQUIRED) {
 			if interfaceValues.Field(i).Type().Kind() == reflect.String && interfaceValues.Field(i).IsZero() {
-				return false
+				return fmt.Errorf("missing required parameter: %s", field.Name)
 			}
 		}
 	}
 
-	return true
+	return nil
 }
 
 func decodeDataIfEncoded(data any, encoded bool, structure *interface{}) error {
