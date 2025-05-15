@@ -45,8 +45,8 @@ type MutiformData struct {
 
 // Global interface
 type Http interface {
-	FinalOutPut(w http.ResponseWriter, httpCode int, resStatus *ResponseStatus, extraValues interface{})
-	ErrorOutPut(w http.ResponseWriter, httpCode int, resStatus *ResponseStatus)
+	FinalOutPut(w http.ResponseWriter, httpCode int, res interface{})
+	ErrorOutPut(w http.ResponseWriter, httpCode int, res interface{})
 	BodyParser(w http.ResponseWriter, r *http.Request, requestInterface interface{}) error
 	MultiPartFormParser(w http.ResponseWriter, r *http.Request, values map[string]interface{}, files ...string) (map[string][]*multipart.FileHeader, error)
 	MultiPartFileToBuff(files []*multipart.FileHeader) [][]byte
@@ -76,8 +76,8 @@ func NewHttp(encodedData bool) Http {
 // @param resStatus *ResponseStatus: Response status.
 //
 // @param extraValues interface{}: interface that will be sended on data field.
-func (h *http_implementation) FinalOutPut(w http.ResponseWriter, resCode int, resStatus *ResponseStatus, extraValues interface{}) {
-	finalOutPut(w, resCode, resStatus, extraValues)
+func (h *http_implementation) FinalOutPut(w http.ResponseWriter, resCode int, res interface{}) {
+	finalOutPut(w, resCode, res)
 }
 
 // Create an http error response as json string
@@ -87,8 +87,8 @@ func (h *http_implementation) FinalOutPut(w http.ResponseWriter, resCode int, re
 // @param resCode int: Http response code.
 //
 // @param resStatus *ResponseStatus: Response status.
-func (h *http_implementation) ErrorOutPut(w http.ResponseWriter, resCode int, resStatus *ResponseStatus) {
-	errorOutPut(w, resCode, resStatus)
+func (h *http_implementation) ErrorOutPut(w http.ResponseWriter, resCode int, res interface{}) {
+	errorOutPut(w, resCode, res)
 }
 
 // Parse request body data
@@ -109,12 +109,12 @@ func (h *http_implementation) BodyParser(w http.ResponseWriter, r *http.Request,
 	// Read the body of the HTTP Request
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		return errors.New(ERROR_HTTP_BAD_REQUEST)
+		return errors.New("cannot read request body")
 	}
 
 	// Parse the JSON encoded in base64
 	if err := json.Unmarshal(body, &bodyData); err != nil {
-		return errors.New(ERROR_HTTP_BAD_REQUEST)
+		return errors.New("error happend on json unmarshal of request body")
 	}
 
 	err = decodeDataIfEncoded(bodyData["data"], h.Base64Data, &requestInterface)
@@ -270,17 +270,7 @@ func (h *http_implementation) ExtractReqPaginationParameters(r *http.Request) Pa
 }
 
 // Declaring this local function tu use on all utility files
-func finalOutPut(w http.ResponseWriter, resCode int, resStatus *ResponseStatus, extraValues interface{}) {
-	// crete the response interface
-	res := Response{
-		Status: *resStatus,
-	}
-
-	// if extra values is not nil -> add it on data field
-	if extraValues != nil {
-		res.Data = extraValues
-	}
-
+func finalOutPut(w http.ResponseWriter, resCode int, res interface{}) {
 	// return error or success code
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(resCode)
@@ -313,7 +303,7 @@ func requiredParamsExists(x interface{}) error {
 func decodeDataIfEncoded(data any, encoded bool, structure *interface{}) error {
 	// Check if the 'data' field exists within the JSON in the body
 	if data == nil {
-		return errors.New(ERROR_HTTP_MISSING_DATA)
+		return errors.New("missing field 'data' inside of the request")
 	}
 
 	codedJson := ""
@@ -324,7 +314,7 @@ func decodeDataIfEncoded(data any, encoded bool, structure *interface{}) error {
 
 		// Check if there was an error while decoding the base64
 		if err != nil {
-			return errors.New(ERROR_HTTP_INVALID_BASE64)
+			return errors.New("malformed base64 on data field")
 		}
 
 		codedJson = string(decoded)
@@ -350,20 +340,12 @@ func decodeDataIfEncoded(data any, encoded bool, structure *interface{}) error {
 	return nil
 }
 
-func errorOutPut(w http.ResponseWriter, resCode int, resStatus *ResponseStatus) {
-	// crete the response interface
-	res := Response{
-		Status: *resStatus,
-	}
-
-	// convert response struct into json string
-	jsonData, _ := json.Marshal(res)
-
+func errorOutPut(w http.ResponseWriter, resCode int, res interface{}) {
 	// return error
 	w.Header().Set("content-type", "application/json")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(resCode)
-	fmt.Fprintln(w, string(jsonData))
+	json.NewEncoder(w).Encode(res)
 
 	// Flush the response
 	if f, ok := w.(http.Flusher); ok {

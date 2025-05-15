@@ -12,26 +12,26 @@ import (
 var defaultErrors = &MiddlewareErrors{
 	NotAuthenticatedRoute: &ResponseStatus{
 		Type:        ERROR,
-		Code:        ERROR_MIDDLEWARE_NOT_AUTHENTICATED_ROUTE,
-		Description: "",
+		Code:        "ERROR_MIDDLEWARE_NOT_AUTHENTICATED_ROUTE",
+		Description: "This route is for not authenticated users",
 	},
 
 	InvalidJWTCookie: &ResponseStatus{
 		Type:        ERROR,
-		Code:        ERROR_MIDDLEWARE_INVALID_COOKIE,
-		Description: "",
+		Code:        "ERROR_MIDDLEWARE_INVALID_COOKIE",
+		Description: "The cookie in the request is expired or not valid",
 	},
 
 	InvalidJWTUser: &ResponseStatus{
 		Type:        ERROR,
-		Code:        ERROR_MIDDLEWARE_INVALID_JWT,
-		Description: "",
+		Code:        "ERROR_MIDDLEWARE_INVALID_JWT",
+		Description: "User inside JWT is invalid",
 	},
 
 	InvalidJWT: &ResponseStatus{
 		Type:        ERROR,
-		Code:        ERROR_MIDDLEWARE_INVALID_JWT_USER,
-		Description: "",
+		Code:        "ERROR_MIDDLEWARE_INVALID_JWT_USER",
+		Description: "JWT is not valid",
 	},
 }
 
@@ -71,10 +71,10 @@ type middlewares_implementation struct {
 }
 
 type MiddlewareErrors struct {
-	NotAuthenticatedRoute *ResponseStatus
-	InvalidJWTCookie      *ResponseStatus
-	InvalidJWTUser        *ResponseStatus
-	InvalidJWT            *ResponseStatus
+	NotAuthenticatedRoute any
+	InvalidJWTCookie      any
+	InvalidJWTUser        any
+	InvalidJWT            any
 }
 
 type MiddlewareOptions struct {
