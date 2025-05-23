@@ -37,15 +37,6 @@ var defaultErrors = &MiddlewareErrors{
 
 // Global interface
 type Middlewares interface {
-	// Generate a valid JWT
-	//
-	// @param id uint: User id.
-	//
-	// @param keeplogin bool: Param to extend jwt valid time.
-	//
-	// @return (string, error): generated jwt & error if exists
-	GenerateJWT(id string, keeplogin bool, ipAddress string) (string, http.Cookie, error)
-
 	// Middleware to validate if user is authenticated with a valid JWT
 	//
 	// @return http.Handler: Handler function used as middleware
@@ -64,10 +55,8 @@ type Middlewares interface {
 
 // Local struct to be implmented
 type middlewares_implementation struct {
-	secret         string
-	errors         *MiddlewareErrors
-	validateIp     bool
-	cookieSameSite http.SameSite
+	secret string
+	errors *MiddlewareErrors
 }
 
 type MiddlewareErrors struct {
@@ -78,21 +67,14 @@ type MiddlewareErrors struct {
 }
 
 type MiddlewareOptions struct {
-	Errors         MiddlewareErrors
-	ValidateSameIp bool
-	CookieSameSite http.SameSite
+	Errors MiddlewareErrors
 }
 
 // External contructor
 func NewMiddlewares(jwtKey string, opts *MiddlewareOptions) Middlewares {
-	sameSite := http.SameSiteStrictMode
 	errors := defaultErrors
 
 	if opts != nil {
-		if opts.CookieSameSite != 0 {
-			sameSite = opts.CookieSameSite
-		}
-
 		if opts.Errors.NotAuthenticatedRoute != nil {
 			errors.NotAuthenticatedRoute = opts.Errors.NotAuthenticatedRoute
 		}
@@ -111,10 +93,8 @@ func NewMiddlewares(jwtKey string, opts *MiddlewareOptions) Middlewares {
 	}
 
 	return &middlewares_implementation{
-		secret:         jwtKey,
-		errors:         errors,
-		validateIp:     opts.ValidateSameIp,
-		cookieSameSite: sameSite,
+		secret: jwtKey,
+		errors: errors,
 	}
 }
 
@@ -135,17 +115,13 @@ func (m *middlewares_implementation) NotAuthenticated(next http.Handler) http.Ha
 			return
 		}
 
-		claims := token.Claims.(jwt.MapClaims)
-		data := claims[JWT_CLAIM_KEY_DATA].(map[string]interface{})
-		id := claims[JWT_CLAIM_KEY_ISSUER].(string)
-		ip := data[JWT_CLAIM_KEY_IP].(string)
-
-		if id == "" || (m.validateIp && (ip != r.Header.Get(HTTP_HEADER_CLOUDFLARE_USERIP) && ip != r.RemoteAddr)) {
+		claims := token.Claims.(jwt.RegisteredClaims)
+		if claims.ExpiresAt.Before(time.Now()) {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		if id == "" {
+		if claims.Subject == "" {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -171,19 +147,18 @@ func (m *middlewares_implementation) IsAuthenticated(next http.Handler) http.Han
 			return
 		}
 
-		claims := token.Claims.(jwt.MapClaims)
+		claims := token.Claims.(jwt.RegisteredClaims)
+		if claims.ExpiresAt.Before(time.Now()) {
+			errorOutPut(w, http.StatusUnauthorized, m.errors.InvalidJWT)
+			return
+		}
 
-		data := claims[JWT_CLAIM_KEY_DATA].(map[string]interface{})
-		ip := data[JWT_CLAIM_KEY_IP].(string)
-
-		id := claims[JWT_CLAIM_KEY_ISSUER].(string)
-
-		if id == "" || (m.validateIp && (ip != r.Header.Get(HTTP_HEADER_CLOUDFLARE_USERIP) && ip != r.RemoteAddr)) {
+		if claims.Subject == "" {
 			errorOutPut(w, http.StatusUnauthorized, m.errors.InvalidJWTUser)
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), CONTEXT_VALUE_USERID, id)
+		ctx := context.WithValue(r.Context(), CONTEXT_VALUE_USERID, claims.Subject)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -205,51 +180,18 @@ func (m *middlewares_implementation) OptionalAuthenticated(next http.Handler) ht
 			return
 		}
 
-		claims := token.Claims.(jwt.MapClaims)
-		data := claims[JWT_CLAIM_KEY_DATA].(map[string]interface{})
-		ip := data[JWT_CLAIM_KEY_IP].(string)
-		id := claims[JWT_CLAIM_KEY_ISSUER].(string)
-
-		if id == "" || (m.validateIp && (ip != r.Header.Get(HTTP_HEADER_CLOUDFLARE_USERIP) && ip != r.RemoteAddr)) {
+		claims := token.Claims.(jwt.RegisteredClaims)
+		if claims.ExpiresAt.Before(time.Now()) {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), CONTEXT_VALUE_USERID, id)
+		if claims.Subject == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), CONTEXT_VALUE_USERID, claims.Subject)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
-}
-
-func (m *middlewares_implementation) GenerateJWT(id string, keeplogin bool, ipAddress string) (string, http.Cookie, error) {
-	// Generate date depending on keeplogin
-	date := time.Hour * 24 // JWT Have 1 day of duration
-
-	if keeplogin {
-		date = time.Hour * 24 * 7 // JWT Have 1 week of duration
-	}
-
-	// Creating custom claims
-	claims := jwt.MapClaims{
-		"iss": id,
-		"exp": jwt.NewNumericDate(time.Now().Add(date)).Unix(),
-		"data": map[string]string{
-			"ip": ipAddress,
-		},
-	}
-
-	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(m.secret))
-	if err != nil {
-		return "", http.Cookie{}, err
-	}
-
-	cookie := http.Cookie{
-		Name:     JWT_COOKIE_NAME,
-		Path:     "/",
-		Value:    token,
-		MaxAge:   int(date.Abs().Seconds()),
-		HttpOnly: true,
-		SameSite: m.cookieSameSite,
-	}
-
-	return token, cookie, nil
 }
