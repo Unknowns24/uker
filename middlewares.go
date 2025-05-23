@@ -106,7 +106,8 @@ func (m *middlewares_implementation) NotAuthenticated(next http.Handler) http.Ha
 			return
 		}
 
-		token, err := jwt.Parse(cookie.Value, func(token *jwt.Token) (interface{}, error) {
+		claims := &jwt.RegisteredClaims{}
+		token, err := jwt.ParseWithClaims(cookie.Value, claims, func(token *jwt.Token) (interface{}, error) {
 			return []byte(m.secret), nil
 		})
 
@@ -115,7 +116,6 @@ func (m *middlewares_implementation) NotAuthenticated(next http.Handler) http.Ha
 			return
 		}
 
-		claims := token.Claims.(jwt.RegisteredClaims)
 		if claims.ExpiresAt.Before(time.Now()) {
 			next.ServeHTTP(w, r)
 			return
@@ -138,7 +138,8 @@ func (m *middlewares_implementation) IsAuthenticated(next http.Handler) http.Han
 			return
 		}
 
-		token, err := jwt.Parse(cookie.Value, func(token *jwt.Token) (interface{}, error) {
+		claims := &jwt.RegisteredClaims{}
+		token, err := jwt.ParseWithClaims(cookie.Value, claims, func(token *jwt.Token) (interface{}, error) {
 			return []byte(m.secret), nil
 		})
 
@@ -147,7 +148,6 @@ func (m *middlewares_implementation) IsAuthenticated(next http.Handler) http.Han
 			return
 		}
 
-		claims := token.Claims.(jwt.RegisteredClaims)
 		if claims.ExpiresAt.Before(time.Now()) {
 			errorOutPut(w, http.StatusUnauthorized, m.errors.InvalidJWT)
 			return
@@ -171,7 +171,8 @@ func (m *middlewares_implementation) OptionalAuthenticated(next http.Handler) ht
 			return
 		}
 
-		token, err := jwt.Parse(cookie.Value, func(token *jwt.Token) (interface{}, error) {
+		claims := &jwt.RegisteredClaims{}
+		token, err := jwt.ParseWithClaims(cookie.Value, claims, func(token *jwt.Token) (interface{}, error) {
 			return []byte(m.secret), nil
 		})
 
@@ -180,7 +181,6 @@ func (m *middlewares_implementation) OptionalAuthenticated(next http.Handler) ht
 			return
 		}
 
-		claims := token.Claims.(jwt.RegisteredClaims)
 		if claims.ExpiresAt.Before(time.Now()) {
 			next.ServeHTTP(w, r)
 			return
