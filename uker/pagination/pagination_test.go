@@ -12,6 +12,8 @@ import (
 	gormtest "gorm.io/gorm/utils/tests"
 )
 
+var secret = []byte("integration-secret")
+
 type record struct{}
 
 func openTestDB(t *testing.T) *gorm.DB {
@@ -23,6 +25,12 @@ func openTestDB(t *testing.T) *gorm.DB {
 	}
 
 	return db
+}
+
+func setAllowedColumns(t *testing.T, allowed map[string]struct{}) {
+	original := pagination.AllowedColumns
+	pagination.AllowedColumns = allowed
+	t.Cleanup(func() { pagination.AllowedColumns = original })
 }
 
 func TestEncodeDecodeCursor(t *testing.T) {
@@ -55,7 +63,53 @@ func TestEncodeDecodeCursor(t *testing.T) {
 	}
 }
 
+func TestEncodeDecodeCursorSigned(t *testing.T) {
+	payload := pagination.CursorPayload{
+		Version: 1,
+		Sort: []pagination.SortExpression{
+			{Field: "created_at", Direction: pagination.DirectionDesc},
+			{Field: "id", Direction: pagination.DirectionDesc},
+		},
+		Filters:   map[string]string{"status_eq": "active"},
+		After:     map[string]string{"created_at": time.Now().UTC().Format(time.RFC3339), "id": "01J8"},
+		Timestamp: time.Now().Unix(),
+	}
+
+	encoded, err := pagination.EncodeCursorSigned(payload, secret)
+	if err != nil {
+		t.Fatalf("encode cursor signed: %v", err)
+	}
+
+	decoded, err := pagination.DecodeCursorSigned(encoded, secret, time.Hour)
+	if err != nil {
+		t.Fatalf("decode cursor signed: %v", err)
+	}
+
+	if decoded.Signature == "" {
+		t.Fatalf("expected signature to be preserved")
+	}
+
+	if decoded.After["id"] != payload.After["id"] {
+		t.Fatalf("expected after id %q, got %q", payload.After["id"], decoded.After["id"])
+	}
+}
+
+func TestDecodeCursorSignedRejectsTampering(t *testing.T) {
+	payload := pagination.CursorPayload{Version: 1}
+	encoded, err := pagination.EncodeCursorSigned(payload, secret)
+	if err != nil {
+		t.Fatalf("encode cursor signed: %v", err)
+	}
+
+	tampered := encoded[:len(encoded)-2] + "zz"
+	if _, err := pagination.DecodeCursorSigned(tampered, secret, time.Hour); err != pagination.ErrInvalidCursor {
+		t.Fatalf("expected invalid cursor error, got %v", err)
+	}
+}
+
 func TestParseWithoutCursor(t *testing.T) {
+	setAllowedColumns(t, nil)
+
 	values := url.Values{}
 	values.Set("limit", "25")
 	values.Set("sort", "created_at:desc")
@@ -84,6 +138,8 @@ func TestParseWithoutCursor(t *testing.T) {
 }
 
 func TestParseWithCursor(t *testing.T) {
+	setAllowedColumns(t, nil)
+
 	cursorPayload := pagination.CursorPayload{
 		Version: 1,
 		Sort:    []pagination.SortExpression{{Field: "created_at", Direction: pagination.DirectionDesc}, {Field: "id", Direction: pagination.DirectionDesc}},
@@ -151,6 +207,48 @@ func TestParseInvalidFilter(t *testing.T) {
 	}
 }
 
+func TestParseWithSecurityBlocksFilterOverrides(t *testing.T) {
+	cursorPayload := pagination.CursorPayload{
+		Version: 1,
+		Sort:    []pagination.SortExpression{{Field: "created_at", Direction: pagination.DirectionDesc}},
+		Filters: map[string]string{"status_eq": "active"},
+	}
+
+	encoded, err := pagination.EncodeCursorSigned(cursorPayload, secret)
+	if err != nil {
+		t.Fatalf("encode cursor signed: %v", err)
+	}
+
+	values := url.Values{}
+	values.Set("cursor", encoded)
+	values.Set("status_eq", "active")
+
+	if _, err := pagination.ParseWithSecurity(values, secret, time.Hour); err != pagination.ErrInvalidFilter {
+		t.Fatalf("expected filter override error, got %v", err)
+	}
+}
+
+func TestParseWithSecurityExpiredCursor(t *testing.T) {
+	cursorPayload := pagination.CursorPayload{
+		Version:   1,
+		Sort:      []pagination.SortExpression{{Field: "created_at", Direction: pagination.DirectionDesc}},
+		Filters:   map[string]string{"status_eq": "active"},
+		Timestamp: time.Now().Add(-2 * time.Hour).Unix(),
+	}
+
+	encoded, err := pagination.EncodeCursorSigned(cursorPayload, secret)
+	if err != nil {
+		t.Fatalf("encode cursor signed: %v", err)
+	}
+
+	values := url.Values{}
+	values.Set("cursor", encoded)
+
+	if _, err := pagination.ParseWithSecurity(values, secret, time.Hour); err != pagination.ErrCursorExpired {
+		t.Fatalf("expected cursor expired error, got %v", err)
+	}
+}
+
 func TestApplyBuildsQuery(t *testing.T) {
 	db := openTestDB(t)
 	params := pagination.Params{
@@ -162,7 +260,7 @@ func TestApplyBuildsQuery(t *testing.T) {
 		Filters: map[string]string{
 			"status_eq":    "active",
 			"origin_in":    "web,app",
-			"country_like": "US%",
+			"country_like": "US",
 		},
 		Cursor: &pagination.CursorPayload{After: map[string]string{
 			"created_at": time.Now().UTC().Format(time.RFC3339),
@@ -199,8 +297,46 @@ func TestApplyBuildsQuery(t *testing.T) {
 		t.Fatalf("expected LIKE filter, got %s", sql)
 	}
 
-	if len(stmt.Vars) == 0 || stmt.Vars[len(stmt.Vars)-1] != params.Limit {
-		t.Fatalf("expected limit binding at the end, got %v", stmt.Vars)
+	if len(stmt.Vars) == 0 {
+		t.Fatalf("expected statement vars to include limit")
+	}
+	if limitValue, ok := stmt.Vars[len(stmt.Vars)-1].(int); !ok || limitValue != params.Limit+1 {
+		t.Fatalf("expected final var to be limit+1 (%d), got %v", params.Limit+1, stmt.Vars[len(stmt.Vars)-1])
+	}
+}
+
+func TestApplyRejectsUnsafeIdentifier(t *testing.T) {
+	db := openTestDB(t)
+	params := pagination.Params{
+		Limit: 5,
+		Sort:  []pagination.SortExpression{{Field: "created_at;drop", Direction: pagination.DirectionDesc}},
+	}
+
+	if _, err := pagination.Apply(db, params); !errors.Is(err, pagination.ErrInvalidSort) {
+		t.Fatalf("expected invalid sort error, got %v", err)
+	}
+}
+
+func TestApplyHonoursAllowedColumns(t *testing.T) {
+	db := openTestDB(t)
+	setAllowedColumns(t, map[string]struct{}{"created_at": {}, "id": {}, "status": {}})
+
+	params := pagination.Params{
+		Limit: 5,
+		Sort: []pagination.SortExpression{
+			{Field: "created_at", Direction: pagination.DirectionDesc},
+			{Field: "id", Direction: pagination.DirectionDesc},
+		},
+		Filters: map[string]string{"status_eq": "active"},
+	}
+
+	if _, err := pagination.Apply(db, params); err != nil {
+		t.Fatalf("unexpected error when identifiers are allowed: %v", err)
+	}
+
+	params.Sort = []pagination.SortExpression{{Field: "unknown", Direction: pagination.DirectionDesc}}
+	if _, err := pagination.Apply(db, params); !errors.Is(err, pagination.ErrInvalidSort) {
+		t.Fatalf("expected invalid sort due to whitelist, got %v", err)
 	}
 }
 
@@ -243,7 +379,7 @@ func TestApplyMissingCursorField(t *testing.T) {
 	}
 }
 
-func TestBuildNextCursor(t *testing.T) {
+func TestBuildNextCursorSignedClonesInput(t *testing.T) {
 	params := pagination.Params{
 		Sort: []pagination.SortExpression{
 			{Field: "created_at", Direction: pagination.DirectionDesc},
@@ -256,22 +392,21 @@ func TestBuildNextCursor(t *testing.T) {
 		"id":         "01J8",
 	}
 
-	cursor, err := pagination.BuildNextCursor(params, values)
+	cursor, err := pagination.BuildNextCursorSigned(params, values, secret)
 	if err != nil {
-		t.Fatalf("build next cursor: %v", err)
+		t.Fatalf("build next cursor signed: %v", err)
 	}
 	if cursor == "" {
 		t.Fatalf("expected next cursor to be generated")
 	}
 
-	// Mutate sources after building to ensure internal copies were produced.
 	params.Sort[0].Field = "mutated"
 	params.Filters["status_in"] = "changed"
 	values["created_at"] = "bad"
 
-	payload, err := pagination.DecodeCursor(cursor)
+	payload, err := pagination.DecodeCursorSigned(cursor, secret, time.Hour)
 	if err != nil {
-		t.Fatalf("decode cursor: %v", err)
+		t.Fatalf("decode cursor signed: %v", err)
 	}
 
 	if payload.After["created_at"] != "2024-08-20T12:00:00Z" {
@@ -285,7 +420,7 @@ func TestBuildNextCursor(t *testing.T) {
 	}
 }
 
-func TestBuildPrevCursor(t *testing.T) {
+func TestBuildPrevCursorSigned(t *testing.T) {
 	params := pagination.Params{
 		Sort: []pagination.SortExpression{
 			{Field: "created_at", Direction: pagination.DirectionDesc},
@@ -298,17 +433,17 @@ func TestBuildPrevCursor(t *testing.T) {
 		"id":         "01J7",
 	}
 
-	cursor, err := pagination.BuildPrevCursor(params, values)
+	cursor, err := pagination.BuildPrevCursorSigned(params, values, secret)
 	if err != nil {
-		t.Fatalf("build prev cursor: %v", err)
+		t.Fatalf("build prev cursor signed: %v", err)
 	}
 	if cursor == "" {
 		t.Fatalf("expected prev cursor to be generated")
 	}
 
-	payload, err := pagination.DecodeCursor(cursor)
+	payload, err := pagination.DecodeCursorSigned(cursor, secret, time.Hour)
 	if err != nil {
-		t.Fatalf("decode cursor: %v", err)
+		t.Fatalf("decode cursor signed: %v", err)
 	}
 
 	if _, ok := payload.Before["created_at"]; !ok {

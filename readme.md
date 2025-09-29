@@ -190,13 +190,18 @@ El paquete `pagination` implementa un contrato consistente para consultas en cur
 ```go
 import (
     "net/http"
+    "time"
 
     "github.com/unknowns24/uker/uker/httpx"
     "github.com/unknowns24/uker/uker/pagination"
 )
 
+var cursorSecret = []byte("super-secret")
+
+// db es un *gorm.DB inicializado en otro lugar del servicio.
+
 func listUsers(w http.ResponseWriter, r *http.Request) {
-    params, err := pagination.Parse(r.URL.Query())
+    params, err := pagination.ParseWithSecurity(r.URL.Query(), cursorSecret, time.Hour)
     if err != nil {
         httpx.ErrorOutput(w, http.StatusBadRequest, httpx.Response{
             Status: httpx.ResponseStatus{Type: httpx.Error, Code: "invalid_cursor", Description: err.Error()},
@@ -204,16 +209,44 @@ func listUsers(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    // Usa params.Limit, params.Sort, params.Filters y params.Cursor para construir la consulta
+    query, err := pagination.Apply(db.Model(&User{}), params)
+    if err != nil {
+        httpx.ErrorOutput(w, http.StatusBadRequest, httpx.Response{
+            Status: httpx.ResponseStatus{Type: httpx.Error, Code: "invalid_query", Description: err.Error()},
+        })
+        return
+    }
+
+    var rows []User
+    if err := query.Find(&rows).Error; err != nil {
+        httpx.ErrorOutput(w, http.StatusInternalServerError, httpx.Response{
+            Status: httpx.ResponseStatus{Type: httpx.Error, Code: "db_error", Description: err.Error()},
+        })
+        return
+    }
+
+    page, err := pagination.BuildPageSigned(params, rows, params.Limit, nil, cursorSecret)
+    if err != nil {
+        httpx.ErrorOutput(w, http.StatusInternalServerError, httpx.Response{
+            Status: httpx.ResponseStatus{Type: httpx.Error, Code: "cursor_error", Description: err.Error()},
+        })
+        return
+    }
+
+    httpx.FinalOutput(w, http.StatusOK, httpx.Response{Status: httpx.ResponseStatus{Type: httpx.Success, Code: "ok"}, Data: page})
 }
 ```
 
-Para construir la respuesta:
+Notas clave del módulo:
 
-```go
-page := pagination.NewPage(users, params.Limit, hasMore, nextCursor, prevCursor)
-httpx.FinalOutput(w, http.StatusOK, httpx.Response{Status: httpx.ResponseStatus{Type: httpx.Success, Code: "ok"}, Data: page})
-```
+- `Apply` consulta `limit+1` registros para determinar `has_more` sin lecturas adicionales.
+- `ParseWithSecurity` y `BuildPageSigned` emiten y verifican cursores firmados con HMAC y TTL configurable.
+- Los identificadores de filtros y orden se validan con regex y whitelist opcional (`pagination.AllowedColumns`).
+- Si una petición incluye `cursor`, los filtros y orden no pueden modificarse en la querystring.
+- Los filtros `*_like` aplican `%valor%` para búsquedas de “contiene”.
+- Asegúrate de que las columnas usadas para ordenar no admitan `NULL` o documenta la limitación.
+- Recomendación de índices compuestos (ejemplo): `CREATE INDEX idx_users_status_created_id ON users (status, created_at DESC, id DESC);`
+- En Postgres/MySQL 8+, las comparaciones por tuplas (`(created_at, id)`) aceleran el keyset cuando el orden es uniforme.
 
 ### Logging centralizado con Fluentd
 

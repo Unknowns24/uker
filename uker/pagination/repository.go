@@ -21,7 +21,7 @@ func Apply(db *gorm.DB, params Params) (*gorm.DB, error) {
 
 	query := db
 	if params.Limit > 0 {
-		query = query.Limit(params.Limit)
+		query = query.Limit(params.Limit + 1)
 	}
 
 	// Apply filters first so keyset conditions can rely on consistent aliases.
@@ -44,33 +44,49 @@ func Apply(db *gorm.DB, params Params) (*gorm.DB, error) {
 		}
 
 		if len(cursor.After) > 0 {
-			expr, values, err := buildKeysetPredicate(params.Sort, cursor.After, false)
-			if err != nil {
+			if expr, values, ok, err := buildKeysetPredicateTuple(params.Sort, cursor.After, false); err != nil {
 				return nil, err
+			} else if ok {
+				query = query.Where(expr, values...)
+			} else {
+				expr, values, err := buildKeysetPredicate(params.Sort, cursor.After, false)
+				if err != nil {
+					return nil, err
+				}
+				query = query.Where(expr, values...)
 			}
-			query = query.Where(expr, values...)
 		}
 
 		if len(cursor.Before) > 0 {
-			expr, values, err := buildKeysetPredicate(params.Sort, cursor.Before, true)
-			if err != nil {
+			if expr, values, ok, err := buildKeysetPredicateTuple(params.Sort, cursor.Before, true); err != nil {
 				return nil, err
+			} else if ok {
+				query = query.Where(expr, values...)
+			} else {
+				expr, values, err := buildKeysetPredicate(params.Sort, cursor.Before, true)
+				if err != nil {
+					return nil, err
+				}
+				query = query.Where(expr, values...)
 			}
-			query = query.Where(expr, values...)
 		}
 	}
 
 	for _, sort := range params.Sort {
-		query = query.Order(clause.OrderByColumn{Column: clause.Column{Name: sort.Field}, Desc: sort.Direction == DirectionDesc})
+		column, err := requireIdent(sort.Field, ErrInvalidSort)
+		if err != nil {
+			return nil, err
+		}
+		query = query.Order(clause.OrderByColumn{Column: clause.Column{Name: column}, Desc: sort.Direction == DirectionDesc})
 	}
 
 	return query, nil
 }
 
 func buildFilterExpression(field, operator, raw string) (string, []any, error) {
-	column := strings.TrimSpace(field)
-	if column == "" {
-		return "", nil, ErrInvalidFilter
+	column, err := requireIdent(strings.TrimSpace(field), ErrInvalidFilter)
+	if err != nil {
+		return "", nil, err
 	}
 
 	switch operator {
@@ -87,7 +103,7 @@ func buildFilterExpression(field, operator, raw string) (string, []any, error) {
 	case "gte":
 		return fmt.Sprintf("%s >= ?", column), []any{raw}, nil
 	case "like":
-		return fmt.Sprintf("%s LIKE ?", column), []any{raw}, nil
+		return fmt.Sprintf("%s LIKE ?", column), []any{"%" + raw + "%"}, nil
 	case "in", "nin":
 		values := splitCSV(raw)
 		if len(values) == 0 {
@@ -116,6 +132,37 @@ func splitCSV(raw string) []string {
 	return cleaned
 }
 
+func buildKeysetPredicateTuple(sortExpressions []SortExpression, cursorValues map[string]string, invert bool) (string, []any, bool, error) {
+	if len(sortExpressions) != 2 {
+		return "", nil, false, nil
+	}
+
+	first := sortExpressions[0]
+	second := sortExpressions[1]
+	if first.Direction != second.Direction {
+		return "", nil, false, nil
+	}
+
+	firstColumn, err := requireIdent(first.Field, ErrInvalidSort)
+	if err != nil {
+		return "", nil, false, err
+	}
+	secondColumn, err := requireIdent(second.Field, ErrInvalidSort)
+	if err != nil {
+		return "", nil, false, err
+	}
+
+	firstValue, okFirst := cursorValues[first.Field]
+	secondValue, okSecond := cursorValues[second.Field]
+	if !okFirst || !okSecond {
+		return "", nil, false, ErrInvalidCursor
+	}
+
+	comparator := comparatorFor(first.Direction, invert)
+	expr := fmt.Sprintf("(%s, %s) %s (?, ?)", firstColumn, secondColumn, comparator)
+	return expr, []any{firstValue, secondValue}, true, nil
+}
+
 func buildKeysetPredicate(sortExpressions []SortExpression, cursorValues map[string]string, invert bool) (string, []any, error) {
 	if len(sortExpressions) == 0 {
 		return "", nil, ErrInvalidCursor
@@ -128,6 +175,11 @@ func buildKeysetPredicate(sortExpressions []SortExpression, cursorValues map[str
 		parts := make([]string, 0, i+1)
 		for j := 0; j <= i; j++ {
 			sortExpr := sortExpressions[j]
+			column, err := requireIdent(sortExpr.Field, ErrInvalidSort)
+			if err != nil {
+				return "", nil, err
+			}
+
 			value, ok := cursorValues[sortExpr.Field]
 			if !ok {
 				return "", nil, ErrInvalidCursor
@@ -135,10 +187,10 @@ func buildKeysetPredicate(sortExpressions []SortExpression, cursorValues map[str
 
 			if j == i {
 				comparator := comparatorFor(sortExpr.Direction, invert)
-				parts = append(parts, fmt.Sprintf("%s %s ?", sortExpr.Field, comparator))
+				parts = append(parts, fmt.Sprintf("%s %s ?", column, comparator))
 				args = append(args, value)
 			} else {
-				parts = append(parts, fmt.Sprintf("%s = ?", sortExpr.Field))
+				parts = append(parts, fmt.Sprintf("%s = ?", column))
 				args = append(args, cursorValues[sortExpr.Field])
 			}
 		}

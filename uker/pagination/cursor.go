@@ -80,8 +80,45 @@ type CursorPayload struct {
 // fields referenced by the sort expressions so the subsequent request can continue from the
 // last record of the current page.
 func BuildNextCursor(params Params, values map[string]string) (string, error) {
+	payload, err := buildNextCursorPayload(params, values)
+	if err != nil || payload == nil {
+		return "", err
+	}
+	return EncodeCursor(*payload)
+}
+
+// BuildNextCursorSigned mirrors BuildNextCursor but signs the payload before returning it.
+func BuildNextCursorSigned(params Params, values map[string]string, secret []byte) (string, error) {
+	payload, err := buildNextCursorPayload(params, values)
+	if err != nil || payload == nil {
+		return "", err
+	}
+	return EncodeCursorSigned(*payload, secret)
+}
+
+// BuildPrevCursor constructs a cursor pointing to the previous page using the provided
+// pagination parameters and keyset boundary values. Callers are expected to pass the first
+// record of the current page so the API can navigate backwards when the client requests it.
+func BuildPrevCursor(params Params, values map[string]string) (string, error) {
+	payload, err := buildPrevCursorPayload(params, values)
+	if err != nil || payload == nil {
+		return "", err
+	}
+	return EncodeCursor(*payload)
+}
+
+// BuildPrevCursorSigned mirrors BuildPrevCursor but signs the payload using the provided secret.
+func BuildPrevCursorSigned(params Params, values map[string]string, secret []byte) (string, error) {
+	payload, err := buildPrevCursorPayload(params, values)
+	if err != nil || payload == nil {
+		return "", err
+	}
+	return EncodeCursorSigned(*payload, secret)
+}
+
+func buildNextCursorPayload(params Params, values map[string]string) (*CursorPayload, error) {
 	if len(values) == 0 {
-		return "", nil
+		return nil, nil
 	}
 
 	payload := CursorPayload{
@@ -90,15 +127,12 @@ func BuildNextCursor(params Params, values map[string]string) (string, error) {
 		After:   cloneCursorValues(values),
 	}
 
-	return EncodeCursor(payload)
+	return &payload, nil
 }
 
-// BuildPrevCursor constructs a cursor pointing to the previous page using the provided
-// pagination parameters and keyset boundary values. Callers are expected to pass the first
-// record of the current page so the API can navigate backwards when the client requests it.
-func BuildPrevCursor(params Params, values map[string]string) (string, error) {
+func buildPrevCursorPayload(params Params, values map[string]string) (*CursorPayload, error) {
 	if len(values) == 0 {
-		return "", nil
+		return nil, nil
 	}
 
 	payload := CursorPayload{
@@ -107,7 +141,7 @@ func BuildPrevCursor(params Params, values map[string]string) (string, error) {
 		Before:  cloneCursorValues(values),
 	}
 
-	return EncodeCursor(payload)
+	return &payload, nil
 }
 
 func cloneSortExpressions(src []SortExpression) []SortExpression {
