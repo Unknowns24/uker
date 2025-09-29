@@ -1,12 +1,29 @@
 package pagination_test
 
 import (
+	"errors"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/unknowns24/uker/uker/pagination"
+	"gorm.io/gorm"
+	gormtest "gorm.io/gorm/utils/tests"
 )
+
+type record struct{}
+
+func openTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+
+	db, err := gorm.Open(gormtest.DummyDialector{}, &gorm.Config{DryRun: true})
+	if err != nil {
+		t.Fatalf("open dummy dialector: %v", err)
+	}
+
+	return db
+}
 
 func TestEncodeDecodeCursor(t *testing.T) {
 	payload := pagination.CursorPayload{
@@ -131,5 +148,97 @@ func TestParseInvalidFilter(t *testing.T) {
 
 	if _, err := pagination.Parse(values); err != pagination.ErrInvalidFilter {
 		t.Fatalf("expected invalid filter error, got %v", err)
+	}
+}
+
+func TestApplyBuildsQuery(t *testing.T) {
+	db := openTestDB(t)
+	params := pagination.Params{
+		Limit: 10,
+		Sort: []pagination.SortExpression{
+			{Field: "created_at", Direction: pagination.DirectionDesc},
+			{Field: "id", Direction: pagination.DirectionDesc},
+		},
+		Filters: map[string]string{
+			"status_eq":    "active",
+			"origin_in":    "web,app",
+			"country_like": "US%",
+		},
+		Cursor: &pagination.CursorPayload{After: map[string]string{
+			"created_at": time.Now().UTC().Format(time.RFC3339),
+			"id":         "01J8",
+		}},
+	}
+
+	query, err := pagination.Apply(db.Model(&record{}), params)
+	if err != nil {
+		t.Fatalf("apply params: %v", err)
+	}
+
+	stmt := query.Find(&[]record{}).Statement
+	if stmt.SQL.Len() == 0 {
+		t.Fatalf("expected statement to generate SQL")
+	}
+	sql := stmt.SQL.String()
+	if !strings.Contains(sql, "LIMIT ?") {
+		t.Fatalf("expected LIMIT placeholder, got %s", sql)
+	}
+	if !strings.Contains(sql, "ORDER BY") {
+		t.Fatalf("expected ORDER BY clause, got %s", sql)
+	}
+	if !strings.Contains(sql, "created_at") || !strings.Contains(sql, "id") {
+		t.Fatalf("expected sort fields in SQL, got %s", sql)
+	}
+	if !strings.Contains(sql, "status = ?") {
+		t.Fatalf("expected status filter, got %s", sql)
+	}
+	if !strings.Contains(sql, "origin IN") {
+		t.Fatalf("expected IN filter, got %s", sql)
+	}
+	if !strings.Contains(sql, "country LIKE ?") {
+		t.Fatalf("expected LIKE filter, got %s", sql)
+	}
+
+	if len(stmt.Vars) == 0 || stmt.Vars[len(stmt.Vars)-1] != params.Limit {
+		t.Fatalf("expected limit binding at the end, got %v", stmt.Vars)
+	}
+}
+
+func TestApplyBeforeCursor(t *testing.T) {
+	db := openTestDB(t)
+
+	params := pagination.Params{
+		Limit: 5,
+		Sort: []pagination.SortExpression{
+			{Field: "id", Direction: pagination.DirectionDesc},
+		},
+		Cursor: &pagination.CursorPayload{Before: map[string]string{"id": "100"}},
+	}
+
+	query, err := pagination.Apply(db.Table("records"), params)
+	if err != nil {
+		t.Fatalf("apply params: %v", err)
+	}
+
+	stmt := query.Find(&[]struct{}{}).Statement
+	if stmt.SQL.Len() == 0 {
+		t.Fatalf("expected statement to generate SQL")
+	}
+	sql := stmt.SQL.String()
+	if !strings.Contains(sql, "id > ?") {
+		t.Fatalf("expected inverted comparator for before cursor, got %s", sql)
+	}
+}
+
+func TestApplyMissingCursorField(t *testing.T) {
+	db := openTestDB(t)
+
+	params := pagination.Params{
+		Sort:   []pagination.SortExpression{{Field: "created_at", Direction: pagination.DirectionDesc}},
+		Cursor: &pagination.CursorPayload{After: map[string]string{"id": "1"}},
+	}
+
+	if _, err := pagination.Apply(db, params); !errors.Is(err, pagination.ErrInvalidCursor) {
+		t.Fatalf("expected invalid cursor error, got %v", err)
 	}
 }
