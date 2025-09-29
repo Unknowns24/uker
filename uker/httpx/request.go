@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"reflect"
 
-	"github.com/unknowns24/uker/uker/pagination"
 	"github.com/unknowns24/uker/uker/validate"
 )
 
@@ -133,11 +132,6 @@ func FirstMultiPartFileToBuff(files []*multipart.FileHeader) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
-}
-
-// ExtractReqPaginationParameters parses the request's query parameters into pagination params.
-func ExtractReqPaginationParameters(r *http.Request) (pagination.Params, error) {
-	return pagination.Parse(r.URL.Query())
 }
 
 func decodeDataField(raw any, target any, base64Data bool) (map[string]any, error) {

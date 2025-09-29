@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/unknowns24/uker/uker/httpx"
-	"github.com/unknowns24/uker/uker/pagination"
 )
 
 type testStruct struct {
@@ -165,38 +164,4 @@ func TestErrorOutput(t *testing.T) {
 	if status.Code != message {
 		t.Fatalf("code = %s", status.Code)
 	}
-}
-
-func TestExtractReqPaginationParameters(t *testing.T) {
-	full := httptest.NewRequest(http.MethodGet, "/?limit=25&sort=created_at:desc&status_in=scheduled,ongoing", nil)
-	empty := httptest.NewRequest(http.MethodGet, "/", nil)
-
-	t.Run("full", func(t *testing.T) {
-		params, err := httpx.ExtractReqPaginationParameters(full)
-		if err != nil {
-			t.Fatalf("ExtractReqPaginationParameters(): %v", err)
-		}
-		if params.Limit != 25 {
-			t.Fatalf("expected limit 25, got %d", params.Limit)
-		}
-		if len(params.Sort) != 2 {
-			t.Fatalf("expected id to be appended to sort, got %d entries", len(params.Sort))
-		}
-		if _, ok := params.Filters["status_in"]; !ok {
-			t.Fatalf("expected status_in filter to be captured")
-		}
-	})
-
-	t.Run("empty", func(t *testing.T) {
-		params, err := httpx.ExtractReqPaginationParameters(empty)
-		if err != nil {
-			t.Fatalf("ExtractReqPaginationParameters(): %v", err)
-		}
-		if params.Limit != pagination.DefaultLimit {
-			t.Fatalf("expected default limit, got %d", params.Limit)
-		}
-		if len(params.Sort) != 1 || params.Sort[0].Field != "id" {
-			t.Fatalf("expected default id sort, got %+v", params.Sort)
-		}
-	})
 }
