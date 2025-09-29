@@ -242,3 +242,102 @@ func TestApplyMissingCursorField(t *testing.T) {
 		t.Fatalf("expected invalid cursor error, got %v", err)
 	}
 }
+
+func TestBuildNextCursor(t *testing.T) {
+	params := pagination.Params{
+		Sort: []pagination.SortExpression{
+			{Field: "created_at", Direction: pagination.DirectionDesc},
+			{Field: "id", Direction: pagination.DirectionDesc},
+		},
+		Filters: map[string]string{"status_in": "active,inactive"},
+	}
+	values := map[string]string{
+		"created_at": time.Date(2024, 8, 20, 12, 0, 0, 0, time.UTC).Format(time.RFC3339),
+		"id":         "01J8",
+	}
+
+	cursor, err := pagination.BuildNextCursor(params, values)
+	if err != nil {
+		t.Fatalf("build next cursor: %v", err)
+	}
+	if cursor == "" {
+		t.Fatalf("expected next cursor to be generated")
+	}
+
+	// Mutate sources after building to ensure internal copies were produced.
+	params.Sort[0].Field = "mutated"
+	params.Filters["status_in"] = "changed"
+	values["created_at"] = "bad"
+
+	payload, err := pagination.DecodeCursor(cursor)
+	if err != nil {
+		t.Fatalf("decode cursor: %v", err)
+	}
+
+	if payload.After["created_at"] != "2024-08-20T12:00:00Z" {
+		t.Fatalf("unexpected after value: %s", payload.After["created_at"])
+	}
+	if payload.Sort[0].Field != "created_at" {
+		t.Fatalf("expected sort field to remain created_at, got %s", payload.Sort[0].Field)
+	}
+	if payload.Filters["status_in"] != "active,inactive" {
+		t.Fatalf("expected filters to be copied, got %s", payload.Filters["status_in"])
+	}
+}
+
+func TestBuildPrevCursor(t *testing.T) {
+	params := pagination.Params{
+		Sort: []pagination.SortExpression{
+			{Field: "created_at", Direction: pagination.DirectionDesc},
+			{Field: "id", Direction: pagination.DirectionDesc},
+		},
+		Filters: map[string]string{"origin_eq": "web"},
+	}
+	values := map[string]string{
+		"created_at": time.Date(2024, 8, 18, 9, 0, 0, 0, time.UTC).Format(time.RFC3339),
+		"id":         "01J7",
+	}
+
+	cursor, err := pagination.BuildPrevCursor(params, values)
+	if err != nil {
+		t.Fatalf("build prev cursor: %v", err)
+	}
+	if cursor == "" {
+		t.Fatalf("expected prev cursor to be generated")
+	}
+
+	payload, err := pagination.DecodeCursor(cursor)
+	if err != nil {
+		t.Fatalf("decode cursor: %v", err)
+	}
+
+	if _, ok := payload.Before["created_at"]; !ok {
+		t.Fatalf("expected before map to contain created_at")
+	}
+	if len(payload.After) != 0 {
+		t.Fatalf("expected after map to be empty")
+	}
+	if payload.Filters["origin_eq"] != "web" {
+		t.Fatalf("expected filters to match, got %s", payload.Filters["origin_eq"])
+	}
+}
+
+func TestBuildCursorEmptyValues(t *testing.T) {
+	params := pagination.Params{}
+
+	next, err := pagination.BuildNextCursor(params, nil)
+	if err != nil {
+		t.Fatalf("build next cursor with nil values: %v", err)
+	}
+	if next != "" {
+		t.Fatalf("expected empty next cursor when no values are provided")
+	}
+
+	prev, err := pagination.BuildPrevCursor(params, map[string]string{})
+	if err != nil {
+		t.Fatalf("build prev cursor with empty values: %v", err)
+	}
+	if prev != "" {
+		t.Fatalf("expected empty prev cursor when no values are provided")
+	}
+}

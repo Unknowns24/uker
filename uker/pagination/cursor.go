@@ -75,6 +75,72 @@ type CursorPayload struct {
 	Signature string            `json:"sig,omitempty"`
 }
 
+// BuildNextCursor constructs a cursor that points to the next page using the provided
+// pagination parameters and keyset boundary values. The supplied values map must contain the
+// fields referenced by the sort expressions so the subsequent request can continue from the
+// last record of the current page.
+func BuildNextCursor(params Params, values map[string]string) (string, error) {
+	if len(values) == 0 {
+		return "", nil
+	}
+
+	payload := CursorPayload{
+		Sort:    cloneSortExpressions(params.Sort),
+		Filters: cloneFilters(params.Filters),
+		After:   cloneCursorValues(values),
+	}
+
+	return EncodeCursor(payload)
+}
+
+// BuildPrevCursor constructs a cursor pointing to the previous page using the provided
+// pagination parameters and keyset boundary values. Callers are expected to pass the first
+// record of the current page so the API can navigate backwards when the client requests it.
+func BuildPrevCursor(params Params, values map[string]string) (string, error) {
+	if len(values) == 0 {
+		return "", nil
+	}
+
+	payload := CursorPayload{
+		Sort:    cloneSortExpressions(params.Sort),
+		Filters: cloneFilters(params.Filters),
+		Before:  cloneCursorValues(values),
+	}
+
+	return EncodeCursor(payload)
+}
+
+func cloneSortExpressions(src []SortExpression) []SortExpression {
+	if len(src) == 0 {
+		return nil
+	}
+	cloned := make([]SortExpression, len(src))
+	copy(cloned, src)
+	return cloned
+}
+
+func cloneFilters(src map[string]string) map[string]string {
+	if len(src) == 0 {
+		return nil
+	}
+	cloned := make(map[string]string, len(src))
+	for key, value := range src {
+		cloned[key] = value
+	}
+	return cloned
+}
+
+func cloneCursorValues(src map[string]string) map[string]string {
+	if len(src) == 0 {
+		return nil
+	}
+	cloned := make(map[string]string, len(src))
+	for key, value := range src {
+		cloned[key] = value
+	}
+	return cloned
+}
+
 // EncodeCursor serialises the provided payload following the documented format and returns a
 // base64url transport string.
 func EncodeCursor(payload CursorPayload) (string, error) {
