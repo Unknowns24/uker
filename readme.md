@@ -5,7 +5,7 @@
 
 ## Overview
 
-Uker (Utility Kernel) is a Go package that provides a set of utilities to simplify various aspects of programming. This package includes interfaces that cover common functionality in the areas of gRPC, HTTP, Middlewares, and MySQL database interactions. These utilities aim to make your Go programming tasks more efficient and straightforward.
+Uker (Utility Kernel) is a Go package that provides a set of utilities to simplify various aspects of programming. This package includes helpers that cover common functionality in the areas of gRPC, HTTP, and MySQL database interactions. These utilities aim to make your Go programming tasks more efficient and straightforward.
 
 ## Table of Contents
 

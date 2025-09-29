@@ -15,13 +15,10 @@ require (
 )
 
 require (
-	github.com/fluent/fluent-logger-golang v1.9.0
-	github.com/golang-jwt/jwt/v4 v4.5.2
-	github.com/mattn/go-sqlite3 v1.14.28 // indirect
-	github.com/sirupsen/logrus v1.9.3
-	golang.org/x/exp v0.0.0-20250506013437-ce4c2cf36ca6
-	golang.org/x/sys v0.33.0 // indirect
-	gorm.io/driver/mysql v1.5.7
-	gorm.io/driver/sqlite v1.5.7
-	gorm.io/gorm v1.26.1
+        github.com/fluent/fluent-logger-golang v1.9.0
+        github.com/sirupsen/logrus v1.9.3
+        golang.org/x/exp v0.0.0-20250506013437-ce4c2cf36ca6
+        golang.org/x/sys v0.33.0 // indirect
+        gorm.io/driver/mysql v1.5.7
+        gorm.io/gorm v1.26.1
 )
