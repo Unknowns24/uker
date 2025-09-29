@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -18,12 +19,16 @@ const (
 var (
 	// ErrInvalidCursor is returned when the provided cursor cannot be decoded or validated.
 	ErrInvalidCursor = errors.New("pagination: invalid cursor")
+	// ErrCursorExpired indicates that the cursor signature is valid but its TTL elapsed.
+	ErrCursorExpired = errors.New("pagination: cursor expired")
 	// ErrInvalidSort indicates that the sort query parameter is malformed or unsupported.
 	ErrInvalidSort = errors.New("pagination: invalid sort")
 	// ErrInvalidFilter reports that one of the query filters does not follow the supported format.
 	ErrInvalidFilter = errors.New("pagination: invalid filter")
 	// ErrLimitOutOfRange signals that the requested limit is outside the allowed bounds.
 	ErrLimitOutOfRange = errors.New("pagination: limit out of range")
+	// ErrInvalidIdentifier reports a disallowed or malformed column identifier.
+	ErrInvalidIdentifier = errors.New("pagination: invalid identifier")
 )
 
 var allowedFilterOperators = map[string]struct{}{
@@ -47,9 +52,28 @@ type Params struct {
 	RawCursor string
 }
 
+type cursorDecoder func(string) (CursorPayload, error)
+
 // Parse reads the provided query values and generates pagination parameters following the
 // documented cursor pagination contract.
 func Parse(values url.Values) (Params, error) {
+	return parse(values, DecodeCursor)
+}
+
+// ParseWithSecurity mirrors Parse but verifies signed cursors using the supplied secret and TTL.
+func ParseWithSecurity(values url.Values, secret []byte, ttl time.Duration) (Params, error) {
+	if len(secret) == 0 {
+		return Params{}, ErrInvalidCursor
+	}
+
+	decoder := func(raw string) (CursorPayload, error) {
+		return DecodeCursorSigned(raw, secret, ttl)
+	}
+
+	return parse(values, decoder)
+}
+
+func parse(values url.Values, decoder cursorDecoder) (Params, error) {
 	params := Params{
 		Limit:   DefaultLimit,
 		Filters: map[string]string{},
@@ -67,8 +91,14 @@ func Parse(values url.Values) (Params, error) {
 	}
 
 	if cursor := values.Get("cursor"); cursor != "" {
-		payload, err := DecodeCursor(cursor)
+		if decoder == nil {
+			return Params{}, ErrInvalidCursor
+		}
+		payload, err := decoder(cursor)
 		if err != nil {
+			if errors.Is(err, ErrCursorExpired) {
+				return Params{}, err
+			}
 			return Params{}, ErrInvalidCursor
 		}
 		params.Cursor = &payload
@@ -109,6 +139,10 @@ func Parse(values url.Values) (Params, error) {
 	if err != nil {
 		return Params{}, err
 	}
+	if params.Cursor != nil && len(filters) > 0 {
+		return Params{}, ErrInvalidFilter
+	}
+
 	for key, value := range filters {
 		params.Filters[key] = value
 	}
@@ -130,8 +164,9 @@ func parseSort(raw string) ([]SortExpression, error) {
 		}
 		parts := strings.Split(segment, ":")
 		field := strings.TrimSpace(parts[0])
-		if field == "" {
-			return nil, ErrInvalidSort
+		identifier, err := requireIdent(field, ErrInvalidSort)
+		if err != nil {
+			return nil, err
 		}
 
 		direction := DirectionDesc
@@ -145,7 +180,7 @@ func parseSort(raw string) ([]SortExpression, error) {
 			}
 		}
 
-		expressions = append(expressions, SortExpression{Field: field, Direction: direction})
+		expressions = append(expressions, SortExpression{Field: identifier, Direction: direction})
 	}
 
 	if len(expressions) == 0 {
@@ -173,8 +208,13 @@ func parseFilters(values url.Values) (map[string]string, error) {
 			return nil, ErrInvalidFilter
 		}
 
+		identifier, err := requireIdent(strings.TrimSpace(field), ErrInvalidFilter)
+		if err != nil {
+			return nil, err
+		}
+
 		combined := strings.Join(rawValues, ",")
-		filters[key] = combined
+		filters[identifier+"_"+operator] = combined
 	}
 
 	return filters, nil
