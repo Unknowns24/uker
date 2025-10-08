@@ -96,6 +96,33 @@ func TestBodyParser(t *testing.T) {
 	}
 }
 
+func TestBodyParserRootPayload(t *testing.T) {
+	test := testStruct{Param1: "value1", Param2: "value2", Param3: 42, Param4: true}
+	body, err := json.Marshal(test)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(string(body)))
+	req.Header.Set("Content-Type", "application/json")
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var data testStruct
+		if err := httpx.BodyParser(r, &data); err != nil {
+			t.Fatalf("BodyParser: %v", err)
+		}
+
+		if data.Param3 != 42 {
+			t.Fatalf("Param3 = %d", data.Param3)
+		}
+		if !data.Param4 {
+			t.Fatalf("Param4 = %v", data.Param4)
+		}
+	})
+
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+}
+
 func TestBodyParserMissingRequired(t *testing.T) {
 	test := map[string]any{"Param2": "value2", "Param3": 10}
 	testJSON, err := json.Marshal(test)
