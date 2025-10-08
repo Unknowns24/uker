@@ -57,9 +57,19 @@ func BodyParser(r *http.Request, target any, opts ...ParserOption) error {
 
 	cfg := newParserConfig(opts...)
 
-	dataFields, err := decodeDataField(payload[requestKeyData], target, cfg.base64Data)
-	if err != nil {
-		return err
+	var dataFields map[string]any
+
+	if rawData, ok := payload[requestKeyData]; ok && rawData != nil {
+		decodedFields, err := decodeDataField(rawData, target, cfg.base64Data)
+		if err != nil {
+			return err
+		}
+		dataFields = decodedFields
+	} else {
+		if err := json.Unmarshal(rawBody, target); err != nil {
+			return errors.New("error happend on json unmarshal of request body")
+		}
+		dataFields = payload
 	}
 
 	return validate.RequiredFields(target, dataFields)
