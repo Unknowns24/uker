@@ -321,6 +321,27 @@ func TestApplyBuildsQuery(t *testing.T) {
 	}
 }
 
+func TestApplyAllowsUnderscoreFieldFilters(t *testing.T) {
+	db := openTestDB(t)
+
+	params := pagination.Params{
+		Filters: map[string]string{
+			"document_number_like": "46",
+		},
+	}
+
+	query, err := pagination.Apply(db.Table("students"), params)
+	if err != nil {
+		t.Fatalf("apply params: %v", err)
+	}
+
+	stmt := query.Find(&[]struct{}{}).Statement
+	sql := stmt.SQL.String()
+	if !strings.Contains(sql, "document_number LIKE ?") {
+		t.Fatalf("expected LIKE filter to target document_number, got %s", sql)
+	}
+}
+
 func TestApplyRejectsUnsafeIdentifier(t *testing.T) {
 	db := openTestDB(t)
 	params := pagination.Params{

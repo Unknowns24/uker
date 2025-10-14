@@ -26,10 +26,13 @@ func Apply(db *gorm.DB, params Params) (*gorm.DB, error) {
 
 	// Apply filters first so keyset conditions can rely on consistent aliases.
 	for key, raw := range params.Filters {
-		field, operator, ok := strings.Cut(key, "_")
-		if !ok {
+		idx := strings.LastIndex(key, "_")
+		if idx <= 0 || idx == len(key)-1 {
 			return nil, ErrInvalidFilter
 		}
+
+		field := key[:idx]
+		operator := key[idx+1:]
 		expr, values, err := buildFilterExpression(field, operator, raw)
 		if err != nil {
 			return nil, err
