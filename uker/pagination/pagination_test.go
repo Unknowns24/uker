@@ -137,6 +137,22 @@ func TestParseWithoutCursor(t *testing.T) {
 	}
 }
 
+func TestParseAllowsUnderscoreFieldFilters(t *testing.T) {
+	setAllowedColumns(t, nil)
+
+	values := url.Values{}
+	values.Set("document_number_like", "46")
+
+	params, err := pagination.Parse(values)
+	if err != nil {
+		t.Fatalf("parse params: %v", err)
+	}
+
+	if got := params.Filters["document_number_like"]; got != "46" {
+		t.Fatalf("expected filter value 46, got %q", got)
+	}
+}
+
 func TestParseWithCursor(t *testing.T) {
 	setAllowedColumns(t, nil)
 
@@ -302,6 +318,27 @@ func TestApplyBuildsQuery(t *testing.T) {
 	}
 	if limitValue, ok := stmt.Vars[len(stmt.Vars)-1].(int); !ok || limitValue != params.Limit+1 {
 		t.Fatalf("expected final var to be limit+1 (%d), got %v", params.Limit+1, stmt.Vars[len(stmt.Vars)-1])
+	}
+}
+
+func TestApplyAllowsUnderscoreFieldFilters(t *testing.T) {
+	db := openTestDB(t)
+
+	params := pagination.Params{
+		Filters: map[string]string{
+			"document_number_like": "46",
+		},
+	}
+
+	query, err := pagination.Apply(db.Table("students"), params)
+	if err != nil {
+		t.Fatalf("apply params: %v", err)
+	}
+
+	stmt := query.Find(&[]struct{}{}).Statement
+	sql := stmt.SQL.String()
+	if !strings.Contains(sql, "document_number LIKE ?") {
+		t.Fatalf("expected LIKE filter to target document_number, got %s", sql)
 	}
 }
 

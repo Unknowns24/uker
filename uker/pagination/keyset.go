@@ -200,8 +200,14 @@ func parseFilters(values url.Values) (map[string]string, error) {
 			continue
 		}
 
-		field, operator, ok := strings.Cut(key, "_")
-		if !ok || field == "" || operator == "" {
+		idx := strings.LastIndex(key, "_")
+		if idx <= 0 || idx == len(key)-1 {
+			return nil, ErrInvalidFilter
+		}
+
+		field := key[:idx]
+		operator := key[idx+1:]
+		if field == "" || operator == "" {
 			return nil, ErrInvalidFilter
 		}
 		if _, allowed := allowedFilterOperators[operator]; !allowed {
