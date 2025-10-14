@@ -137,6 +137,22 @@ func TestParseWithoutCursor(t *testing.T) {
 	}
 }
 
+func TestParseAllowsUnderscoreFieldFilters(t *testing.T) {
+	setAllowedColumns(t, nil)
+
+	values := url.Values{}
+	values.Set("document_number_like", "46")
+
+	params, err := pagination.Parse(values)
+	if err != nil {
+		t.Fatalf("parse params: %v", err)
+	}
+
+	if got := params.Filters["document_number_like"]; got != "46" {
+		t.Fatalf("expected filter value 46, got %q", got)
+	}
+}
+
 func TestParseWithCursor(t *testing.T) {
 	setAllowedColumns(t, nil)
 
