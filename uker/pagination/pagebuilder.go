@@ -163,7 +163,7 @@ func newAutoCursorExtractor[T any](params Params, items []T) (CursorExtractor[T]
 
 		cursor := make(map[string]string, len(accessors))
 		for _, accessor := range accessors {
-			field := value.Field(accessor.index)
+			field := value.FieldByIndex(accessor.index)
 			encoded, err := formatCursorValue(field)
 			if err != nil {
 				return nil, fmt.Errorf("pagination: %s", err)
@@ -206,13 +206,12 @@ func inferStructType[T any](items []T) (reflect.Type, error) {
 
 type fieldAccessor struct {
 	sortField string
-	index     int
+	index     []int
 }
 
 func buildFieldAccessors(structType reflect.Type, sorts []SortExpression) ([]fieldAccessor, error) {
-	lookup := map[string]int{}
-	for i := 0; i < structType.NumField(); i++ {
-		field := structType.Field(i)
+	lookup := map[string][]int{}
+	for _, field := range reflect.VisibleFields(structType) {
 		if !field.IsExported() {
 			continue
 		}
@@ -220,7 +219,7 @@ func buildFieldAccessors(structType reflect.Type, sorts []SortExpression) ([]fie
 		for _, alias := range fieldAliases(field) {
 			key := strings.ToLower(alias)
 			if _, exists := lookup[key]; !exists {
-				lookup[key] = i
+				lookup[key] = field.Index
 			}
 		}
 	}
