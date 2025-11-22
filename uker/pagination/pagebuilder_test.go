@@ -15,6 +15,15 @@ type member struct {
 	CreatedAt time.Time `gorm:"column:created_at"`
 }
 
+type baseModel struct {
+	ID string `gorm:"column:id"`
+}
+
+type order struct {
+	baseModel
+	CreatedAt time.Time `gorm:"column:created_at"`
+}
+
 func TestBuildPage_FirstPageWithoutCursor(t *testing.T) {
 	raw := url.Values{}
 	raw.Set("limit", "2")
@@ -160,5 +169,32 @@ func TestBuildPage_AutomaticExtractorMissingField(t *testing.T) {
 
 	if _, err := pagination.BuildPageSigned[member](params, members, params.Limit, int64(len(members)), nil, pageSecret); err == nil {
 		t.Fatalf("expected error when automatic extraction cannot resolve sort field")
+	}
+}
+
+func TestBuildPage_AutomaticExtractorEmbeddedField(t *testing.T) {
+	params := pagination.Params{
+		Limit: 1,
+		Sort:  []pagination.SortExpression{{Field: "id", Direction: pagination.DirectionAsc}},
+	}
+
+	orders := []order{{baseModel: baseModel{ID: "ord-1"}, CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)}, {baseModel: baseModel{ID: "ord-2"}, CreatedAt: time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)}}
+
+	page, err := pagination.BuildPageSigned[order](params, orders, params.Limit, int64(len(orders)), nil, pageSecret)
+	if err != nil {
+		t.Fatalf("BuildPage returned error: %v", err)
+	}
+
+	if page.Paging.NextCursor == "" {
+		t.Fatalf("expected next cursor to be generated using embedded id field")
+	}
+
+	payload, err := pagination.DecodeCursorSigned(page.Paging.NextCursor, pageSecret, time.Hour)
+	if err != nil {
+		t.Fatalf("decode next cursor: %v", err)
+	}
+
+	if got := payload.After["id"]; got != orders[0].ID {
+		t.Fatalf("expected next cursor to include id %q, got %q", orders[0].ID, got)
 	}
 }
