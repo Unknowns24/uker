@@ -230,7 +230,7 @@ func ensureIDSort(sortExpressions *[]SortExpression) {
 	sortSlice := *sortExpressions
 	hasID := false
 	for _, entry := range sortSlice {
-		if strings.EqualFold(entry.Field, "id") {
+		if strings.EqualFold(stripTableAlias(entry.Field), "id") {
 			hasID = true
 			break
 		}
@@ -244,7 +244,7 @@ func ensureIDSort(sortExpressions *[]SortExpression) {
 	unique := make([]SortExpression, 0, len(sortSlice))
 	seen := map[string]struct{}{}
 	for _, entry := range sortSlice {
-		key := strings.ToLower(entry.Field)
+		key := strings.ToLower(stripTableAlias(entry.Field))
 		if _, ok := seen[key]; ok {
 			continue
 		}

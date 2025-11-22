@@ -226,7 +226,7 @@ func buildFieldAccessors(structType reflect.Type, sorts []SortExpression) ([]fie
 
 	accessors := make([]fieldAccessor, 0, len(sorts))
 	for _, sort := range sorts {
-		key := strings.ToLower(sort.Field)
+		key := strings.ToLower(stripTableAlias(sort.Field))
 		index, ok := lookup[key]
 		if !ok {
 			return nil, fmt.Errorf("pagination: cannot find field %q in %s for automatic cursor extraction", sort.Field, structType.Name())

@@ -153,6 +153,26 @@ func TestParseAllowsUnderscoreFieldFilters(t *testing.T) {
 	}
 }
 
+func TestParseAcceptsQualifiedIdentifiers(t *testing.T) {
+	setAllowedColumns(t, nil)
+
+	values := url.Values{}
+	values.Set("sort", "orders.created_at:desc")
+	values.Set("orders.status_eq", "active")
+
+	params, err := pagination.Parse(values)
+	if err != nil {
+		t.Fatalf("parse params: %v", err)
+	}
+
+	if params.Sort[0].Field != "orders.created_at" {
+		t.Fatalf("expected qualified sort field to be preserved, got %s", params.Sort[0].Field)
+	}
+	if _, ok := params.Filters["orders.status_eq"]; !ok {
+		t.Fatalf("expected qualified filter key to be present")
+	}
+}
+
 func TestParseWithCursor(t *testing.T) {
 	setAllowedColumns(t, nil)
 
@@ -321,6 +341,34 @@ func TestApplyBuildsQuery(t *testing.T) {
 	}
 }
 
+func TestApplyUsesQualifiedColumns(t *testing.T) {
+	db := openTestDB(t)
+
+	params := pagination.Params{
+		Sort: []pagination.SortExpression{
+			{Field: "orders.created_at", Direction: pagination.DirectionDesc},
+			{Field: "orders.id", Direction: pagination.DirectionDesc},
+		},
+		Filters: map[string]string{
+			"orders.status_eq": "active",
+		},
+	}
+
+	query, err := pagination.Apply(db.Table("orders"), params)
+	if err != nil {
+		t.Fatalf("apply params: %v", err)
+	}
+
+	stmt := query.Find(&[]record{}).Statement
+	sql := stmt.SQL.String()
+	if !strings.Contains(sql, "orders.status = ?") {
+		t.Fatalf("expected qualified filter to be used, got %s", sql)
+	}
+	if !strings.Contains(sql, "orders`.`created_at") {
+		t.Fatalf("expected qualified sort to be used, got %s", sql)
+	}
+}
+
 func TestApplyAllowsUnderscoreFieldFilters(t *testing.T) {
 	db := openTestDB(t)
 
@@ -374,6 +422,18 @@ func TestApplyHonoursAllowedColumns(t *testing.T) {
 	params.Sort = []pagination.SortExpression{{Field: "unknown", Direction: pagination.DirectionDesc}}
 	if _, err := pagination.Apply(db, params); !errors.Is(err, pagination.ErrInvalidSort) {
 		t.Fatalf("expected invalid sort due to whitelist, got %v", err)
+	}
+}
+
+func TestParseHonoursAllowedColumnsWithQualifiedNames(t *testing.T) {
+	setAllowedColumns(t, map[string]struct{}{"created_at": {}, "id": {}, "status": {}})
+
+	values := url.Values{}
+	values.Set("sort", "orders.created_at:desc")
+	values.Set("orders.status_eq", "active")
+
+	if _, err := pagination.Parse(values); err != nil {
+		t.Fatalf("unexpected error when qualified identifiers map to allowed columns: %v", err)
 	}
 }
 
@@ -491,6 +551,43 @@ func TestBuildPrevCursorSigned(t *testing.T) {
 	}
 	if payload.Filters["origin_eq"] != "web" {
 		t.Fatalf("expected filters to match, got %s", payload.Filters["origin_eq"])
+	}
+}
+
+func TestBuildPageAutoExtractorStripsAliasForLookup(t *testing.T) {
+	params := pagination.Params{
+		Limit: 1,
+		Sort: []pagination.SortExpression{
+			{Field: "orders.created_at", Direction: pagination.DirectionDesc},
+			{Field: "orders.id", Direction: pagination.DirectionDesc},
+		},
+	}
+
+	type aliasedRecord struct {
+		ID        int
+		CreatedAt time.Time
+	}
+
+	now := time.Date(2024, 8, 20, 12, 0, 0, 0, time.UTC)
+	records := []aliasedRecord{{ID: 1, CreatedAt: now}, {ID: 2, CreatedAt: now.Add(-time.Hour)}}
+
+	page, err := pagination.BuildPage(params, records, params.Limit, nil)
+	if err != nil {
+		t.Fatalf("build page with aliased sorts: %v", err)
+	}
+	if page.Paging.NextCursor == "" {
+		t.Fatalf("expected next cursor to be generated with has_more")
+	}
+
+	payload, err := pagination.DecodeCursor(page.Paging.NextCursor)
+	if err != nil {
+		t.Fatalf("decode cursor: %v", err)
+	}
+	if _, ok := payload.After["orders.created_at"]; !ok {
+		t.Fatalf("expected after cursor to include qualified created_at")
+	}
+	if _, ok := payload.After["orders.id"]; !ok {
+		t.Fatalf("expected after cursor to include qualified id")
 	}
 }
 
