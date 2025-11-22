@@ -31,13 +31,18 @@ func TestBuildPage_FirstPageWithoutCursor(t *testing.T) {
 		{ID: "mem-3", CreatedAt: time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)},
 	}
 
-	page, err := pagination.BuildPageSigned[member](params, members, params.Limit, nil, pageSecret)
+	pageTotal := int64(len(members))
+	page, err := pagination.BuildPageSigned[member](params, members, params.Limit, pageTotal, nil, pageSecret)
 	if err != nil {
 		t.Fatalf("BuildPage returned error: %v", err)
 	}
 
 	if len(page.Data) != params.Limit {
 		t.Fatalf("expected %d items, got %d", params.Limit, len(page.Data))
+	}
+
+	if page.Paging.Total != pageTotal {
+		t.Fatalf("expected total %d, got %d", pageTotal, page.Paging.Total)
 	}
 
 	if !page.Paging.HasMore {
@@ -69,7 +74,8 @@ func TestBuildPage_GeneratesPrevCursorForSubsequentPage(t *testing.T) {
 		{ID: "mem-3", CreatedAt: time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)},
 	}
 
-	firstPage, err := pagination.BuildPageSigned[member](params, firstMembers, params.Limit, nil, pageSecret)
+	firstTotal := int64(len(firstMembers))
+	firstPage, err := pagination.BuildPageSigned[member](params, firstMembers, params.Limit, firstTotal, nil, pageSecret)
 	if err != nil {
 		t.Fatalf("BuildPage (first page) returned error: %v", err)
 	}
@@ -89,9 +95,13 @@ func TestBuildPage_GeneratesPrevCursorForSubsequentPage(t *testing.T) {
 
 	secondMembers := []member{{ID: "mem-3", CreatedAt: time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)}}
 
-	secondPage, err := pagination.BuildPageSigned[member](secondParams, secondMembers, secondParams.Limit, nil, pageSecret)
+	secondPage, err := pagination.BuildPageSigned[member](secondParams, secondMembers, secondParams.Limit, firstTotal, nil, pageSecret)
 	if err != nil {
 		t.Fatalf("BuildPage (second page) returned error: %v", err)
+	}
+
+	if secondPage.Paging.Total != firstTotal {
+		t.Fatalf("expected total %d on second page, got %d", firstTotal, secondPage.Paging.Total)
 	}
 
 	if secondPage.Paging.HasMore {
@@ -126,9 +136,13 @@ func TestBuildPage_NoResultsKeepsPrevCursor(t *testing.T) {
 		Sort:      []pagination.SortExpression{{Field: "id", Direction: pagination.DirectionDesc}},
 	}
 
-	page, err := pagination.BuildPageSigned[member](params, nil, params.Limit, nil, pageSecret)
+	page, err := pagination.BuildPageSigned[member](params, nil, params.Limit, 0, nil, pageSecret)
 	if err != nil {
 		t.Fatalf("BuildPage returned error: %v", err)
+	}
+
+	if page.Paging.Total != 0 {
+		t.Fatalf("expected total 0 when no results, got %d", page.Paging.Total)
 	}
 
 	if page.Paging.PrevCursor != params.RawCursor {
@@ -144,7 +158,7 @@ func TestBuildPage_AutomaticExtractorMissingField(t *testing.T) {
 
 	members := []member{{ID: "mem-1", CreatedAt: time.Now().UTC()}, {ID: "mem-2", CreatedAt: time.Now().UTC()}}
 
-	if _, err := pagination.BuildPageSigned[member](params, members, params.Limit, nil, pageSecret); err == nil {
+	if _, err := pagination.BuildPageSigned[member](params, members, params.Limit, int64(len(members)), nil, pageSecret); err == nil {
 		t.Fatalf("expected error when automatic extraction cannot resolve sort field")
 	}
 }

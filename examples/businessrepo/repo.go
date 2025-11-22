@@ -51,6 +51,20 @@ func (r *BusinessRepo) ListMembers(businessID string, raw url.Values) (*paginati
 	}
 
 	base := r.db.Model(&BusinessMember{}).Where("business_id = ?", businessID)
+	countParams := params
+	countParams.Cursor = nil
+	countParams.RawCursor = ""
+	countParams.Limit = 0
+
+	countQuery, err := pagination.Apply(base, countParams)
+	if err != nil {
+		return nil, err
+	}
+
+	var total int64
+	if err := countQuery.Count(&total).Error; err != nil {
+		return nil, err
+	}
 	query, err := pagination.Apply(base, params)
 	if err != nil {
 		return nil, err
@@ -66,7 +80,7 @@ func (r *BusinessRepo) ListMembers(businessID string, raw url.Values) (*paginati
 		limit = pagination.DefaultLimit
 	}
 
-	page, err := pagination.BuildPageSigned[BusinessMember](params, results, limit, nil, r.cursorSecret)
+	page, err := pagination.BuildPageSigned[BusinessMember](params, results, limit, total, nil, r.cursorSecret)
 	if err != nil {
 		return nil, err
 	}

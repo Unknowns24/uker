@@ -78,6 +78,21 @@ if err != nil {
 }
 
 query := db.Model(&YourModel{})
+
+countParams := params
+countParams.Cursor = nil
+countParams.RawCursor = ""
+countParams.Limit = 0
+countQuery, err := pagination.Apply(query, countParams)
+if err != nil {
+    // responder con error 400 u otro según el caso
+}
+
+var total int64
+if err := countQuery.Count(&total).Error; err != nil {
+    // manejar error de base de datos
+}
+
 query, err = pagination.Apply(query, params)
 if err != nil {
     // responder con error 400 u otro según el caso
@@ -88,7 +103,7 @@ if err := query.Find(&results).Error; err != nil {
     // manejar error de base de datos
 }
 
-page, err := pagination.BuildPageSigned(params, results, params.Limit, extractor, secret)
+page, err := pagination.BuildPageSigned(params, results, params.Limit, total, extractor, secret)
 if err != nil {
     // manejar error al generar cursores
 }
@@ -99,8 +114,9 @@ if err != nil {
 - `Apply` traduce `params.Filters` y `params.Sort` en cláusulas SQL y solicita
   `limit+1` registros para calcular `has_more`.
 - `BuildPageSigned` genera la estructura `pagination.PagingResponse`, truncando
-  los resultados si exceden `limit` y calculando `next_cursor`/`prev_cursor`
-  con los valores provistos por la función `extractor`.
+  los resultados si exceden `limit`, calculando `next_cursor`/`prev_cursor`
+  con los valores provistos por la función `extractor` y exponiendo
+  `paging.total` con el total filtrado.
 
 La función `extractor` recibe cada elemento de la página y debe devolver un
 mapa `map[string]string` con los campos que participaron en `params.Sort`. Un
@@ -116,6 +132,7 @@ El paquete retorna una estructura JSON consistente. Un ejemplo de respuesta es:
   "data": [ /* resultados */ ],
   "paging": {
     "limit": 20,
+    "total": 120,
     "has_more": true,
     "next_cursor": "eyJvZm...",
     "prev_cursor": ""

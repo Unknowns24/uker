@@ -10,6 +10,7 @@ type PagingResponse[T any] struct {
 // PagingBlock embeds metadata about the delivered page.
 type PagingBlock struct {
 	Limit      int    `json:"limit"`
+	Total      int64  `json:"total"`
 	HasMore    bool   `json:"has_more"`
 	NextCursor string `json:"next_cursor,omitempty"`
 	PrevCursor string `json:"prev_cursor,omitempty"`
@@ -17,7 +18,11 @@ type PagingBlock struct {
 
 // NewPage creates a paging response with the provided data slice and metadata. The function is
 // generic to avoid unnecessary allocations when building API responses.
-func NewPage[T any](data []T, limit int, hasMore bool, nextCursor, prevCursor string) PagingResponse[T] {
+func NewPage[T any](data []T, limit int, total int64, hasMore bool, nextCursor, prevCursor string) PagingResponse[T] {
+	if total < 0 {
+		total = 0
+	}
+
 	// Defensive copy so callers can continue re-using their input slice without exposing
 	// future mutations.
 	copied := make([]T, len(data))
@@ -27,6 +32,7 @@ func NewPage[T any](data []T, limit int, hasMore bool, nextCursor, prevCursor st
 		Data: copied,
 		Paging: PagingBlock{
 			Limit:      limit,
+			Total:      total,
 			HasMore:    hasMore,
 			NextCursor: nextCursor,
 			PrevCursor: prevCursor,
