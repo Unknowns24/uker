@@ -24,17 +24,18 @@ type CursorExtractor[T any] func(item T) (map[string]string, error)
 // BuildPage constructs a PagingResponse using the provided query parameters and
 // result slice. The function expects the slice to contain up to limit+1
 // elements, where the extra record is used to determine whether there is
-// another page available. Callers must provide an extractor that converts a
-// record into the cursor value map understood by BuildNextCursor/BuildPrevCursor.
-func BuildPage[T any](params Params, results []T, limit int, extract CursorExtractor[T]) (PagingResponse[T], error) {
+// another page available. Callers must provide the total number of records
+// matching the filters and an extractor that converts a record into the cursor
+// value map understood by BuildNextCursor/BuildPrevCursor.
+func BuildPage[T any](params Params, results []T, limit int, total int64, extract CursorExtractor[T]) (PagingResponse[T], error) {
 	encode := func(payload CursorPayload) (string, error) {
 		return EncodeCursor(payload)
 	}
-	return buildPageWithEncoders(params, results, limit, extract, encode, encode)
+	return buildPageWithEncoders(params, results, limit, total, extract, encode, encode)
 }
 
 // BuildPageSigned behaves like BuildPage but signs generated cursors with the provided secret.
-func BuildPageSigned[T any](params Params, results []T, limit int, extract CursorExtractor[T], secret []byte) (PagingResponse[T], error) {
+func BuildPageSigned[T any](params Params, results []T, limit int, total int64, extract CursorExtractor[T], secret []byte) (PagingResponse[T], error) {
 	if len(secret) == 0 {
 		return PagingResponse[T]{}, errors.New("pagination: missing cursor signing secret")
 	}
@@ -42,10 +43,10 @@ func BuildPageSigned[T any](params Params, results []T, limit int, extract Curso
 	encode := func(payload CursorPayload) (string, error) {
 		return EncodeCursorSigned(payload, secret)
 	}
-	return buildPageWithEncoders(params, results, limit, extract, encode, encode)
+	return buildPageWithEncoders(params, results, limit, total, extract, encode, encode)
 }
 
-func buildPageWithEncoders[T any](params Params, results []T, limit int, extract CursorExtractor[T], encodeNext, encodePrev cursorEncodeFunc) (PagingResponse[T], error) {
+func buildPageWithEncoders[T any](params Params, results []T, limit int, total int64, extract CursorExtractor[T], encodeNext, encodePrev cursorEncodeFunc) (PagingResponse[T], error) {
 	if limit < 0 {
 		limit = 0
 	}
@@ -122,7 +123,7 @@ func buildPageWithEncoders[T any](params Params, results []T, limit int, extract
 		}
 	}
 
-	return NewPage(items, limit, hasMore, nextCursor, prevCursor), nil
+	return NewPage(items, limit, total, hasMore, nextCursor, prevCursor), nil
 }
 
 func newAutoCursorExtractor[T any](params Params, items []T) (CursorExtractor[T], error) {

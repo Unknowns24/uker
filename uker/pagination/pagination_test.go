@@ -571,7 +571,7 @@ func TestBuildPageAutoExtractorStripsAliasForLookup(t *testing.T) {
 	now := time.Date(2024, 8, 20, 12, 0, 0, 0, time.UTC)
 	records := []aliasedRecord{{ID: 1, CreatedAt: now}, {ID: 2, CreatedAt: now.Add(-time.Hour)}}
 
-	page, err := pagination.BuildPage(params, records, params.Limit, nil)
+	page, err := pagination.BuildPage(params, records, params.Limit, int64(len(records)), nil)
 	if err != nil {
 		t.Fatalf("build page with aliased sorts: %v", err)
 	}

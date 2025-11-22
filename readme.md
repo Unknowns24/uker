@@ -209,7 +209,29 @@ func listUsers(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    query, err := pagination.Apply(db.Model(&User{}), params)
+    base := db.Model(&User{})
+
+    countParams := params
+    countParams.Cursor = nil
+    countParams.RawCursor = ""
+    countParams.Limit = 0
+    countQuery, err := pagination.Apply(base, countParams)
+    if err != nil {
+        httpx.ErrorOutput(w, http.StatusBadRequest, httpx.Response{
+            Status: httpx.ResponseStatus{Type: httpx.Error, Code: "invalid_query", Description: err.Error()},
+        })
+        return
+    }
+
+    var total int64
+    if err := countQuery.Count(&total).Error; err != nil {
+        httpx.ErrorOutput(w, http.StatusInternalServerError, httpx.Response{
+            Status: httpx.ResponseStatus{Type: httpx.Error, Code: "db_error", Description: err.Error()},
+        })
+        return
+    }
+
+    query, err := pagination.Apply(base, params)
     if err != nil {
         httpx.ErrorOutput(w, http.StatusBadRequest, httpx.Response{
             Status: httpx.ResponseStatus{Type: httpx.Error, Code: "invalid_query", Description: err.Error()},
@@ -225,7 +247,7 @@ func listUsers(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    page, err := pagination.BuildPageSigned(params, rows, params.Limit, nil, cursorSecret)
+    page, err := pagination.BuildPageSigned(params, rows, params.Limit, total, nil, cursorSecret)
     if err != nil {
         httpx.ErrorOutput(w, http.StatusInternalServerError, httpx.Response{
             Status: httpx.ResponseStatus{Type: httpx.Error, Code: "cursor_error", Description: err.Error()},
@@ -240,6 +262,8 @@ func listUsers(w http.ResponseWriter, r *http.Request) {
 Notas clave del módulo:
 
 - `Apply` consulta `limit+1` registros para determinar `has_more` sin lecturas adicionales.
+- Para exponer `paging.total`, ejecuta un `Count` con los mismos filtros pero sin
+  `cursor` ni `limit`, y pasa ese valor a `BuildPageSigned`.
 - `ParseWithSecurity` y `BuildPageSigned` emiten y verifican cursores firmados con HMAC y TTL configurable.
 - Los identificadores de filtros y orden se validan con regex y whitelist opcional (`pagination.AllowedColumns`).
 - Si una petición incluye `cursor`, los filtros y orden no pueden modificarse en la querystring.
