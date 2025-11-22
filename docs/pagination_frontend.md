@@ -37,6 +37,15 @@ paquete debe invocar el backend para completar el flujo.
 subrayado (`_`). Esto permite filtros como `document_number_like=46`, donde el
 campo `document_number` conserva el sufijo del operador `like`.
 
+### Prefijos de tabla o alias
+
+Cuando las consultas incluyen `JOIN` es habitual necesitar el prefijo de la
+tabla o alias para evitar ambigüedades (por ejemplo, `orders.status`). El
+paquete acepta identificadores con un único punto en `sort` y en los filtros
+(`orders.status_eq=active`). La expresión completa se envía al SQL, pero para
+generar los cursores el extractor automático ignora el prefijo y busca el campo
+en la estructura de dominio usando solo el nombre de columna.
+
 ## Construcción de la URL en el frontend
 
 - **Primera página:** define explícitamente `limit`, `sort` (si se requiere un
