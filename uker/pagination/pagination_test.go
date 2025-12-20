@@ -341,6 +341,73 @@ func TestApplyBuildsQuery(t *testing.T) {
 	}
 }
 
+func TestApplyFiltersOnlyAddsWhereClauses(t *testing.T) {
+	db := openTestDB(t)
+
+	filters := map[string]string{
+		"status_eq":    "active",
+		"origin_in":    "web,app",
+		"country_like": "US",
+	}
+
+	query, err := pagination.ApplyFilters(db.Model(&record{}), filters)
+	if err != nil {
+		t.Fatalf("apply filters: %v", err)
+	}
+
+	stmt := query.Find(&[]record{}).Statement
+	if stmt.SQL.Len() == 0 {
+		t.Fatalf("expected statement to generate SQL")
+	}
+
+	sql := stmt.SQL.String()
+	if strings.Contains(sql, "LIMIT") {
+		t.Fatalf("expected filters to avoid limit clause, got %s", sql)
+	}
+	if strings.Contains(sql, "ORDER BY") {
+		t.Fatalf("expected filters to avoid order clause, got %s", sql)
+	}
+	if !strings.Contains(sql, "status = ?") {
+		t.Fatalf("expected status filter, got %s", sql)
+	}
+	if !strings.Contains(sql, "origin IN") {
+		t.Fatalf("expected IN filter, got %s", sql)
+	}
+	if !strings.Contains(sql, "country LIKE ?") {
+		t.Fatalf("expected LIKE filter, got %s", sql)
+	}
+}
+
+func TestApplyFiltersHonoursAllowedColumns(t *testing.T) {
+	db := openTestDB(t)
+	setAllowedColumns(t, map[string]struct{}{"status": {}, "origin": {}})
+
+	filters := map[string]string{"status_eq": "active"}
+
+	if _, err := pagination.ApplyFilters(db.Model(&record{}), filters); err != nil {
+		t.Fatalf("unexpected error when identifiers are allowed: %v", err)
+	}
+
+	filters["origin_eq"] = "web"
+	if _, err := pagination.ApplyFilters(db.Model(&record{}), filters); err != nil {
+		t.Fatalf("unexpected error when identifiers are allowed: %v", err)
+	}
+
+	filters["unknown_eq"] = "bad"
+	if _, err := pagination.ApplyFilters(db.Model(&record{}), filters); !errors.Is(err, pagination.ErrInvalidFilter) {
+		t.Fatalf("expected invalid filter error due to whitelist, got %v", err)
+	}
+}
+
+func TestApplyFiltersRejectsInvalidOperator(t *testing.T) {
+	db := openTestDB(t)
+	filters := map[string]string{"status_bad": "value"}
+
+	if _, err := pagination.ApplyFilters(db, filters); !errors.Is(err, pagination.ErrInvalidFilter) {
+		t.Fatalf("expected invalid filter error, got %v", err)
+	}
+}
+
 func TestApplyUsesQualifiedColumns(t *testing.T) {
 	db := openTestDB(t)
 

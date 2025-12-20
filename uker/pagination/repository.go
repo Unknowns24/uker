@@ -25,19 +25,9 @@ func Apply(db *gorm.DB, params Params) (*gorm.DB, error) {
 	}
 
 	// Apply filters first so keyset conditions can rely on consistent aliases.
-	for key, raw := range params.Filters {
-		idx := strings.LastIndex(key, "_")
-		if idx <= 0 || idx == len(key)-1 {
-			return nil, ErrInvalidFilter
-		}
-
-		field := key[:idx]
-		operator := key[idx+1:]
-		expr, values, err := buildFilterExpression(field, operator, raw)
-		if err != nil {
-			return nil, err
-		}
-		query = query.Where(expr, values...)
+	var err error
+	if query, err = ApplyFilters(query, params.Filters); err != nil {
+		return nil, err
 	}
 
 	if params.Cursor != nil {
@@ -81,6 +71,33 @@ func Apply(db *gorm.DB, params Params) (*gorm.DB, error) {
 			return nil, err
 		}
 		query = query.Order(clause.OrderByColumn{Column: clause.Column{Name: column}, Desc: sort.Direction == DirectionDesc})
+	}
+
+	return query, nil
+}
+
+// ApplyFilters attaches only the provided filters to the GORM query, leaving
+// pagination and sorting untouched. It returns the modified query so callers can
+// reuse the filtering logic when counting records or composing queries.
+func ApplyFilters(db *gorm.DB, filters map[string]string) (*gorm.DB, error) {
+	if db == nil {
+		return nil, errNilDB
+	}
+
+	query := db
+	for key, raw := range filters {
+		idx := strings.LastIndex(key, "_")
+		if idx <= 0 || idx == len(key)-1 {
+			return nil, ErrInvalidFilter
+		}
+
+		field := key[:idx]
+		operator := key[idx+1:]
+		expr, values, err := buildFilterExpression(field, operator, raw)
+		if err != nil {
+			return nil, err
+		}
+		query = query.Where(expr, values...)
 	}
 
 	return query, nil
