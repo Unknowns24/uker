@@ -67,6 +67,7 @@ func (s *SortExpression) UnmarshalJSON(data []byte) error {
 // be encoded using EncodeCursor / DecodeCursor.
 type CursorPayload struct {
 	Version   int               `json:"v"`
+	Limit     int               `json:"limit,omitempty"`
 	Sort      []SortExpression  `json:"sort,omitempty"`
 	Filters   map[string]string `json:"filters,omitempty"`
 	After     map[string]string `json:"after,omitempty"`
@@ -122,6 +123,7 @@ func buildNextCursorPayload(params Params, values map[string]string) (*CursorPay
 	}
 
 	payload := CursorPayload{
+		Limit:   params.Limit,
 		Sort:    cloneSortExpressions(params.Sort),
 		Filters: cloneFilters(params.Filters),
 		After:   cloneCursorValues(values),
@@ -136,6 +138,7 @@ func buildPrevCursorPayload(params Params, values map[string]string) (*CursorPay
 	}
 
 	payload := CursorPayload{
+		Limit:   params.Limit,
 		Sort:    cloneSortExpressions(params.Sort),
 		Filters: cloneFilters(params.Filters),
 		Before:  cloneCursorValues(values),
@@ -211,6 +214,10 @@ func DecodeCursor(encoded string) (CursorPayload, error) {
 
 	if payload.Version <= 0 {
 		return CursorPayload{}, errors.New("pagination: unsupported cursor version")
+	}
+
+	if payload.Limit < 0 {
+		return CursorPayload{}, errors.New("pagination: cursor limit invalid")
 	}
 
 	for _, sort := range payload.Sort {

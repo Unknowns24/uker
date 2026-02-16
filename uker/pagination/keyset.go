@@ -79,8 +79,14 @@ func parse(values url.Values, decoder cursorDecoder) (Params, error) {
 		Filters: map[string]string{},
 	}
 
-	if limit := values.Get("limit"); limit != "" {
-		parsed, err := strconv.Atoi(limit)
+	cursor := values.Get("cursor")
+	rawLimit := values.Get("limit")
+	if cursor != "" && rawLimit != "" {
+		return Params{}, ErrInvalidCursor
+	}
+
+	if rawLimit != "" {
+		parsed, err := strconv.Atoi(rawLimit)
 		if err != nil || parsed <= 0 {
 			return Params{}, ErrLimitOutOfRange
 		}
@@ -90,7 +96,7 @@ func parse(values url.Values, decoder cursorDecoder) (Params, error) {
 		params.Limit = parsed
 	}
 
-	if cursor := values.Get("cursor"); cursor != "" {
+	if cursor != "" {
 		if decoder == nil {
 			return Params{}, ErrInvalidCursor
 		}
@@ -103,6 +109,13 @@ func parse(values url.Values, decoder cursorDecoder) (Params, error) {
 		}
 		params.Cursor = &payload
 		params.RawCursor = cursor
+
+		if payload.Limit > 0 {
+			if payload.Limit > MaxLimit {
+				return Params{}, ErrInvalidCursor
+			}
+			params.Limit = payload.Limit
+		}
 
 		if len(payload.Filters) > 0 {
 			for key, value := range payload.Filters {
