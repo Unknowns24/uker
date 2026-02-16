@@ -178,6 +178,7 @@ func TestParseWithCursor(t *testing.T) {
 
 	cursorPayload := pagination.CursorPayload{
 		Version: 1,
+		Limit:   15,
 		Sort:    []pagination.SortExpression{{Field: "created_at", Direction: pagination.DirectionDesc}, {Field: "id", Direction: pagination.DirectionDesc}},
 		Filters: map[string]string{"status_in": "scheduled,ongoing"},
 	}
@@ -203,6 +204,25 @@ func TestParseWithCursor(t *testing.T) {
 	}
 	if len(params.Filters) != 1 {
 		t.Fatalf("expected filters from cursor to be included")
+	}
+	if params.Limit != 15 {
+		t.Fatalf("expected limit from cursor, got %d", params.Limit)
+	}
+}
+
+func TestParseRejectsCursorAndLimitTogether(t *testing.T) {
+	cursorPayload := pagination.CursorPayload{Version: 1, Limit: 10}
+	encoded, err := pagination.EncodeCursor(cursorPayload)
+	if err != nil {
+		t.Fatalf("encode cursor: %v", err)
+	}
+
+	values := url.Values{}
+	values.Set("cursor", encoded)
+	values.Set("limit", "10")
+
+	if _, err := pagination.Parse(values); err != pagination.ErrInvalidCursor {
+		t.Fatalf("expected invalid cursor when cursor and limit are both provided, got %v", err)
 	}
 }
 

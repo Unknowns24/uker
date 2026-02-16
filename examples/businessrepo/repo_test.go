@@ -79,7 +79,6 @@ func TestBuildPage_GeneratesPrevCursorForSubsequentPage(t *testing.T) {
 
 	secondRaw := url.Values{}
 	secondRaw.Set("cursor", firstPage.Paging.NextCursor)
-	secondRaw.Set("limit", "2")
 
 	secondParams, err := pagination.ParseWithSecurity(secondRaw, testSecret, time.Hour)
 	if err != nil {

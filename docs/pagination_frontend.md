@@ -27,8 +27,8 @@ paquete debe invocar el backend para completar el flujo.
 | `<campo>_<op>`   | `status_in=active,pending`          | Filtros; `<op>` debe ser uno de `eq`, `neq`, `lt`, `lte`, `gt`, `gte`, `like`, `in`, `nin`.
 
 > **Importante:** cuando la petición incluye `cursor`, no se pueden añadir ni
-> modificar filtros u ordenamientos. `ParseWithSecurity` comparará la firma y
-> rechazará la petición con `ErrInvalidSort` o `ErrInvalidFilter` si detecta
+> modificar `limit`, filtros u ordenamientos. `ParseWithSecurity` reconstruye
+> esos valores desde el cursor y rechazará la petición si detecta
 > inconsistencias.
 
 ### Campos con guiones bajos
