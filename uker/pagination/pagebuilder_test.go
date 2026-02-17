@@ -197,3 +197,42 @@ func TestBuildPage_AutomaticExtractorEmbeddedField(t *testing.T) {
 		t.Fatalf("expected next cursor to include id %q, got %q", orders[0].ID, got)
 	}
 }
+
+func TestBuildPage_BeforeCursorRestoresForwardPaging(t *testing.T) {
+	params := pagination.Params{
+		Limit: 3,
+		Sort:  []pagination.SortExpression{{Field: "id", Direction: pagination.DirectionDesc}},
+		Cursor: &pagination.CursorPayload{
+			Before: map[string]string{"id": "mem-7"},
+		},
+	}
+
+	// Simula resultados obtenidos por Apply al navegar hacia atrás:
+	// ORDER asc + limit+1. BuildPage debe reordenarlos en el orden original (desc).
+	results := []member{
+		{ID: "mem-8", CreatedAt: time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC)},
+		{ID: "mem-9", CreatedAt: time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC)},
+		{ID: "mem-10", CreatedAt: time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC)},
+	}
+
+	page, err := pagination.BuildPageSigned[member](params, results, params.Limit, 10, nil, pageSecret)
+	if err != nil {
+		t.Fatalf("BuildPage returned error: %v", err)
+	}
+
+	if len(page.Data) != 3 {
+		t.Fatalf("expected 3 items, got %d", len(page.Data))
+	}
+	if page.Data[0].ID != "mem-10" || page.Data[2].ID != "mem-8" {
+		t.Fatalf("expected results to be reversed back to desc order, got first=%s last=%s", page.Data[0].ID, page.Data[2].ID)
+	}
+	if !page.Paging.HasMore {
+		t.Fatalf("expected hasMore true when returning from a previous cursor")
+	}
+	if page.Paging.NextCursor == "" {
+		t.Fatalf("expected next cursor to navigate forward again")
+	}
+	if page.Paging.PrevCursor != "" {
+		t.Fatalf("expected prev cursor to be empty at the first page boundary")
+	}
+}

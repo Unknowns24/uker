@@ -548,6 +548,9 @@ func TestApplyBeforeCursor(t *testing.T) {
 	if !strings.Contains(sql, "id > ?") {
 		t.Fatalf("expected inverted comparator for before cursor, got %s", sql)
 	}
+	if strings.Contains(sql, "ORDER BY `id` DESC") {
+		t.Fatalf("expected before cursor to invert ORDER BY direction, got %s", sql)
+	}
 }
 
 func TestApplyMissingCursorField(t *testing.T) {
