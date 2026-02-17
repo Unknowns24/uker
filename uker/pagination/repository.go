@@ -65,12 +65,20 @@ func Apply(db *gorm.DB, params Params) (*gorm.DB, error) {
 		}
 	}
 
+	navigatingBefore := params.Cursor != nil && len(params.Cursor.Before) > 0 && len(params.Cursor.After) == 0
+
 	for _, sort := range params.Sort {
 		column, err := requireIdent(sort.Field, ErrInvalidSort)
 		if err != nil {
 			return nil, err
 		}
-		query = query.Order(clause.OrderByColumn{Column: clause.Column{Name: column}, Desc: sort.Direction == DirectionDesc})
+
+		desc := sort.Direction == DirectionDesc
+		if navigatingBefore {
+			desc = !desc
+		}
+
+		query = query.Order(clause.OrderByColumn{Column: clause.Column{Name: column}, Desc: desc})
 	}
 
 	return query, nil

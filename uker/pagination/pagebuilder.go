@@ -51,13 +51,22 @@ func buildPageWithEncoders[T any](params Params, results []T, limit int, total i
 		limit = 0
 	}
 
+	navigatingBefore := params.Cursor != nil && len(params.Cursor.Before) > 0 && len(params.Cursor.After) == 0
+
 	items := results
 	hasMore := false
+	hasMoreBackward := false
 	if len(results) > limit {
 		hasMore = true
+		hasMoreBackward = true
 		if limit < len(results) {
 			items = results[:limit]
 		}
+	}
+
+	if navigatingBefore {
+		reverseSlice(items)
+		hasMore = len(items) > 0
 	}
 
 	needsExtractor := (hasMore && limit > 0) || (params.Cursor != nil && len(items) > 0)
@@ -99,8 +108,14 @@ func buildPageWithEncoders[T any](params Params, results []T, limit int, total i
 	var prevCursor string
 	if params.Cursor != nil {
 		if len(items) == 0 {
-			prevCursor = params.RawCursor
+			if !navigatingBefore {
+				prevCursor = params.RawCursor
+			}
 		} else {
+			if navigatingBefore && !hasMoreBackward {
+				return NewPage(items, limit, total, hasMore, nextCursor, ""), nil
+			}
+
 			if extract == nil {
 				return PagingResponse[T]{}, ErrNilCursorExtractor
 			}
@@ -124,6 +139,12 @@ func buildPageWithEncoders[T any](params Params, results []T, limit int, total i
 	}
 
 	return NewPage(items, limit, total, hasMore, nextCursor, prevCursor), nil
+}
+
+func reverseSlice[T any](values []T) {
+	for left, right := 0, len(values)-1; left < right; left, right = left+1, right-1 {
+		values[left], values[right] = values[right], values[left]
+	}
 }
 
 func newAutoCursorExtractor[T any](params Params, items []T) (CursorExtractor[T], error) {
