@@ -20,6 +20,8 @@ func Apply(db *gorm.DB, params Params) (*gorm.DB, error) {
 	}
 
 	query := db
+	baseTable := inferBaseTable(query)
+	qualifiedSort := qualifySortExpressions(params.Sort, baseTable)
 	if params.Limit > 0 {
 		query = query.Limit(params.Limit + 1)
 	}
@@ -37,12 +39,12 @@ func Apply(db *gorm.DB, params Params) (*gorm.DB, error) {
 		}
 
 		if len(cursor.After) > 0 {
-			if expr, values, ok, err := buildKeysetPredicateTuple(params.Sort, cursor.After, false); err != nil {
+			if expr, values, ok, err := buildKeysetPredicateTuple(qualifiedSort, cursor.After, false); err != nil {
 				return nil, err
 			} else if ok {
 				query = query.Where(expr, values...)
 			} else {
-				expr, values, err := buildKeysetPredicate(params.Sort, cursor.After, false)
+				expr, values, err := buildKeysetPredicate(qualifiedSort, cursor.After, false)
 				if err != nil {
 					return nil, err
 				}
@@ -51,12 +53,12 @@ func Apply(db *gorm.DB, params Params) (*gorm.DB, error) {
 		}
 
 		if len(cursor.Before) > 0 {
-			if expr, values, ok, err := buildKeysetPredicateTuple(params.Sort, cursor.Before, true); err != nil {
+			if expr, values, ok, err := buildKeysetPredicateTuple(qualifiedSort, cursor.Before, true); err != nil {
 				return nil, err
 			} else if ok {
 				query = query.Where(expr, values...)
 			} else {
-				expr, values, err := buildKeysetPredicate(params.Sort, cursor.Before, true)
+				expr, values, err := buildKeysetPredicate(qualifiedSort, cursor.Before, true)
 				if err != nil {
 					return nil, err
 				}
@@ -67,7 +69,7 @@ func Apply(db *gorm.DB, params Params) (*gorm.DB, error) {
 
 	navigatingBefore := params.Cursor != nil && len(params.Cursor.Before) > 0 && len(params.Cursor.After) == 0
 
-	for _, sort := range params.Sort {
+	for _, sort := range qualifiedSort {
 		column, err := requireIdent(sort.Field, ErrInvalidSort)
 		if err != nil {
 			return nil, err
@@ -160,6 +162,20 @@ func splitCSV(raw string) []string {
 	return cleaned
 }
 
+
+func qualifySortExpressions(sortExpressions []SortExpression, table string) []SortExpression {
+	if len(sortExpressions) == 0 {
+		return nil
+	}
+
+	qualified := make([]SortExpression, 0, len(sortExpressions))
+	for _, sort := range sortExpressions {
+		qualified = append(qualified, SortExpression{Field: qualifyIdentifier(sort.Field, table), Direction: sort.Direction})
+	}
+
+	return qualified
+}
+
 func buildKeysetPredicateTuple(sortExpressions []SortExpression, cursorValues map[string]string, invert bool) (string, []any, bool, error) {
 	if len(sortExpressions) != 2 {
 		return "", nil, false, nil
@@ -180,8 +196,8 @@ func buildKeysetPredicateTuple(sortExpressions []SortExpression, cursorValues ma
 		return "", nil, false, err
 	}
 
-	firstValue, okFirst := cursorValues[first.Field]
-	secondValue, okSecond := cursorValues[second.Field]
+	firstValue, okFirst := cursorValueForSort(cursorValues, first.Field)
+	secondValue, okSecond := cursorValueForSort(cursorValues, second.Field)
 	if !okFirst || !okSecond {
 		return "", nil, false, ErrInvalidCursor
 	}
@@ -208,7 +224,7 @@ func buildKeysetPredicate(sortExpressions []SortExpression, cursorValues map[str
 				return "", nil, err
 			}
 
-			value, ok := cursorValues[sortExpr.Field]
+			value, ok := cursorValueForSort(cursorValues, sortExpr.Field)
 			if !ok {
 				return "", nil, ErrInvalidCursor
 			}
@@ -219,7 +235,7 @@ func buildKeysetPredicate(sortExpressions []SortExpression, cursorValues map[str
 				args = append(args, value)
 			} else {
 				parts = append(parts, fmt.Sprintf("%s = ?", column))
-				args = append(args, cursorValues[sortExpr.Field])
+				args = append(args, value)
 			}
 		}
 
@@ -227,6 +243,51 @@ func buildKeysetPredicate(sortExpressions []SortExpression, cursorValues map[str
 	}
 
 	return strings.Join(clauses, " OR "), args, nil
+}
+
+func inferBaseTable(db *gorm.DB) string {
+	if db == nil || db.Statement == nil {
+		return ""
+	}
+
+	if db.Statement.Table != "" {
+		return db.Statement.Table
+	}
+
+	if db.Statement.Schema != nil && db.Statement.Schema.Table != "" {
+		return db.Statement.Schema.Table
+	}
+
+	if db.Statement.Model != nil {
+		stmt := db.Session(&gorm.Session{}).Statement
+		if err := stmt.Parse(db.Statement.Model); err == nil {
+			if stmt.Table != "" {
+				return stmt.Table
+			}
+			if stmt.Schema != nil {
+				return stmt.Schema.Table
+			}
+		}
+	}
+
+	return ""
+}
+
+func qualifyIdentifier(identifier, table string) string {
+	if table == "" || strings.Contains(identifier, ".") {
+		return identifier
+	}
+	return table + "." + identifier
+}
+
+func cursorValueForSort(cursorValues map[string]string, sortField string) (string, bool) {
+	if value, ok := cursorValues[sortField]; ok {
+		return value, true
+	}
+
+	stripped := stripTableAlias(sortField)
+	value, ok := cursorValues[stripped]
+	return value, ok
 }
 
 func comparatorFor(direction Direction, invert bool) string {
