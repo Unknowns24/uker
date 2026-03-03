@@ -456,6 +456,37 @@ func TestApplyUsesQualifiedColumns(t *testing.T) {
 	}
 }
 
+func TestApplyQualifiesDefaultIDSortForJoinedQueries(t *testing.T) {
+	db := openTestDB(t)
+
+	params, err := pagination.Parse(url.Values{"limit": []string{"10"}})
+	if err != nil {
+		t.Fatalf("parse params: %v", err)
+	}
+
+	params.Cursor = &pagination.CursorPayload{After: map[string]string{"id": "4d61e396-3f2f-4692-ac0d-e39769ec6256"}}
+
+	query, err := pagination.Apply(
+		db.Table("users").
+			Joins("JOIN user_roles ur ON ur.user_id = users.id").
+			Joins("JOIN roles r ON r.id = ur.role").
+			Where("r.slug = ?", "professor"),
+		params,
+	)
+	if err != nil {
+		t.Fatalf("apply params: %v", err)
+	}
+
+	stmt := query.Find(&[]record{}).Statement
+	sql := stmt.SQL.String()
+	if !strings.Contains(sql, "users.id < ?") {
+		t.Fatalf("expected cursor predicate to qualify id column, got %s", sql)
+	}
+	if !strings.Contains(sql, "ORDER BY `users`.`id` DESC") {
+		t.Fatalf("expected order by to qualify id column, got %s", sql)
+	}
+}
+
 func TestApplyAllowsUnderscoreFieldFilters(t *testing.T) {
 	db := openTestDB(t)
 
