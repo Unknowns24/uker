@@ -254,8 +254,20 @@ func inferBaseTable(db *gorm.DB) string {
 		return db.Statement.Table
 	}
 
-	if db.Statement.Schema != nil {
+	if db.Statement.Schema != nil && db.Statement.Schema.Table != "" {
 		return db.Statement.Schema.Table
+	}
+
+	if db.Statement.Model != nil {
+		stmt := db.Session(&gorm.Session{}).Statement
+		if err := stmt.Parse(db.Statement.Model); err == nil {
+			if stmt.Table != "" {
+				return stmt.Table
+			}
+			if stmt.Schema != nil {
+				return stmt.Schema.Table
+			}
+		}
 	}
 
 	return ""
