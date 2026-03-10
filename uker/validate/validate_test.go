@@ -22,31 +22,45 @@ func TestMinLength(t *testing.T) {
 	}
 }
 
-func TestRequiredFields(t *testing.T) {
+func TestValidateFields(t *testing.T) {
 	type payload struct {
-		Name string `json:"name" uker:"required"`
-		Age  int    `json:"age" uker:"required"`
+		Name string `json:"name" uker:"required,min=3,max=5"`
+		Age  int    `json:"age" uker:"required,min=18,max=65"`
 		Note string
 	}
 
 	valid := &payload{Name: "Alice", Age: 30}
 	body := map[string]any{"name": "Alice", "age": 30}
 
-	if err := RequiredFields(valid, body); err != nil {
+	if err := ValidateFields(valid, body); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	missing := &payload{Name: "Alice"}
 	bodyMissing := map[string]any{"name": "Alice"}
-
-	if err := RequiredFields(missing, bodyMissing); err == nil {
+	if err := ValidateFields(missing, bodyMissing); err == nil {
 		t.Fatalf("expected error for missing required field")
 	}
 
-	empty := &payload{Age: 25}
-	bodyEmpty := map[string]any{"name": "", "age": 25}
+	shortName := &payload{Name: "Al", Age: 25}
+	bodyShortName := map[string]any{"name": "Al", "age": 25}
+	if err := ValidateFields(shortName, bodyShortName); err == nil {
+		t.Fatalf("expected error for min string length")
+	}
 
-	if err := RequiredFields(empty, bodyEmpty); err == nil {
-		t.Fatalf("expected error for empty required field")
+	ageTooHigh := &payload{Name: "Alice", Age: 70}
+	bodyAgeTooHigh := map[string]any{"name": "Alice", "age": 70}
+	if err := ValidateFields(ageTooHigh, bodyAgeTooHigh); err == nil {
+		t.Fatalf("expected error for max int value")
+	}
+}
+
+func TestRequiredFieldsCompatibility(t *testing.T) {
+	type payload struct {
+		Name string `json:"name" uker:"required"`
+	}
+
+	if err := RequiredFields(&payload{Name: "ok"}, map[string]any{"name": "ok"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
