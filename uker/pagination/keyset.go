@@ -212,6 +212,9 @@ func parseFilters(values url.Values) (map[string]string, error) {
 		if len(rawValues) == 0 {
 			continue
 		}
+		if !hasAllowedFilterOperatorSuffix(key) {
+			continue
+		}
 
 		_, _, normalizedKey, err := parseFilterKey(key)
 		if err != nil {

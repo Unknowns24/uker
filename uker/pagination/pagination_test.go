@@ -296,12 +296,18 @@ func TestParseInvalidSortOverride(t *testing.T) {
 	}
 }
 
-func TestParseInvalidFilter(t *testing.T) {
+func TestParseIgnoresNonFilterParams(t *testing.T) {
 	values := url.Values{}
 	values.Set("status_between", "one,two")
+	values.Set("business_id", "123")
 
-	if _, err := pagination.Parse(values); err != pagination.ErrInvalidFilter {
-		t.Fatalf("expected invalid filter error, got %v", err)
+	params, err := pagination.Parse(values)
+	if err != nil {
+		t.Fatalf("parse params: %v", err)
+	}
+
+	if len(params.Filters) != 0 {
+		t.Fatalf("expected non-filter params to be ignored, got %d filters", len(params.Filters))
 	}
 }
 
@@ -339,6 +345,35 @@ func TestParseWithSecurityBlocksFilterOverrides(t *testing.T) {
 
 	if _, err := pagination.ParseWithSecurity(values, secret, time.Hour); err != pagination.ErrInvalidFilter {
 		t.Fatalf("expected filter override error, got %v", err)
+	}
+}
+
+func TestParseWithSecurityIgnoresNonFilterParamsWithCursor(t *testing.T) {
+	cursorPayload := pagination.CursorPayload{
+		Version: 1,
+		Sort:    []pagination.SortExpression{{Field: "created_at", Direction: pagination.DirectionDesc}},
+		Filters: map[string]string{"status_eq": "active"},
+	}
+
+	encoded, err := pagination.EncodeCursorSigned(cursorPayload, secret)
+	if err != nil {
+		t.Fatalf("encode cursor signed: %v", err)
+	}
+
+	values := url.Values{}
+	values.Set("cursor", encoded)
+	values.Set("business_id", "123")
+
+	params, err := pagination.ParseWithSecurity(values, secret, time.Hour)
+	if err != nil {
+		t.Fatalf("parse params: %v", err)
+	}
+
+	if got := params.Filters["status_eq"]; got != "active" {
+		t.Fatalf("expected cursor filter to be preserved, got %q", got)
+	}
+	if len(params.Filters) != 1 {
+		t.Fatalf("expected only cursor filters, got %d", len(params.Filters))
 	}
 }
 

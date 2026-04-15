@@ -2,6 +2,16 @@ package pagination
 
 import "strings"
 
+func hasAllowedFilterOperatorSuffix(key string) bool {
+	idx := strings.LastIndex(key, "_")
+	if idx <= 0 || idx == len(key)-1 {
+		return false
+	}
+
+	_, allowed := allowedFilterOperators[key[idx+1:]]
+	return allowed
+}
+
 func parseFilterKey(key string) ([]string, string, string, error) {
 	idx := strings.LastIndex(key, "_")
 	if idx <= 0 || idx == len(key)-1 {
