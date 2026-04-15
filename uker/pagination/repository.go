@@ -96,14 +96,11 @@ func ApplyFilters(db *gorm.DB, filters map[string]string) (*gorm.DB, error) {
 
 	query := db
 	for key, raw := range filters {
-		idx := strings.LastIndex(key, "_")
-		if idx <= 0 || idx == len(key)-1 {
-			return nil, ErrInvalidFilter
+		fields, operator, _, err := parseFilterKey(key)
+		if err != nil {
+			return nil, err
 		}
-
-		field := key[:idx]
-		operator := key[idx+1:]
-		expr, values, err := buildFilterExpression(field, operator, raw)
+		expr, values, err := buildFilterExpression(fields, operator, raw)
 		if err != nil {
 			return nil, err
 		}
@@ -113,7 +110,30 @@ func ApplyFilters(db *gorm.DB, filters map[string]string) (*gorm.DB, error) {
 	return query, nil
 }
 
-func buildFilterExpression(field, operator, raw string) (string, []any, error) {
+func buildFilterExpression(fields []string, operator, raw string) (string, []any, error) {
+	if len(fields) == 0 {
+		return "", nil, ErrInvalidFilter
+	}
+
+	if len(fields) == 1 {
+		return buildSingleFilterExpression(fields[0], operator, raw)
+	}
+
+	clauses := make([]string, 0, len(fields))
+	values := make([]any, 0, len(fields))
+	for _, field := range fields {
+		clause, args, err := buildSingleFilterExpression(field, operator, raw)
+		if err != nil {
+			return "", nil, err
+		}
+		clauses = append(clauses, clause)
+		values = append(values, args...)
+	}
+
+	return "(" + strings.Join(clauses, " OR ") + ")", values, nil
+}
+
+func buildSingleFilterExpression(field, operator, raw string) (string, []any, error) {
 	column, err := requireIdent(strings.TrimSpace(field), ErrInvalidFilter)
 	if err != nil {
 		return "", nil, err
@@ -161,7 +181,6 @@ func splitCSV(raw string) []string {
 	}
 	return cleaned
 }
-
 
 func qualifySortExpressions(sortExpressions []SortExpression, table string) []SortExpression {
 	if len(sortExpressions) == 0 {

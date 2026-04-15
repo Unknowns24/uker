@@ -267,6 +267,8 @@ Notas clave del módulo:
 - `ParseWithSecurity` y `BuildPageSigned` emiten y verifican cursores firmados con HMAC y TTL configurable.
 - Los identificadores de filtros y orden se validan con regex y whitelist opcional (`pagination.AllowedColumns`).
 - Si una petición incluye `cursor`, los filtros y orden no pueden modificarse en la querystring.
+- Además de `<campo>_<op>`, los filtros aceptan grupos por coma `<campoA>,<campoB>_<op>`:
+  el grupo se evalúa con `OR` y los demás filtros con `AND`.
 - Los filtros `*_like` aplican `%valor%` para búsquedas de “contiene”.
 - Asegúrate de que las columnas usadas para ordenar no admitan `NULL` o documenta la limitación.
 - Recomendación de índices compuestos (ejemplo): `CREATE INDEX idx_users_status_created_id ON users (status, created_at DESC, id DESC);`

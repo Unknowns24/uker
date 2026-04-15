@@ -24,7 +24,7 @@ paquete debe invocar el backend para completar el flujo.
 | `limit`          | `limit=25`                          | Tamaño de página (el paquete impone máximos configurables).
 | `sort`           | `sort=created_at:desc,name:asc`     | Lista separada por comas. Cada entrada usa `campo[:asc\|desc]`. Si `id` no se indica, el paquete lo agrega para desempates.
 | `cursor`         | `cursor=eyJ...`                     | Cursor firmado devuelto previamente. Debe reenviarse sin cambios.
-| `<campo>_<op>`   | `status_in=active,pending`          | Filtros; `<op>` debe ser uno de `eq`, `neq`, `lt`, `lte`, `gt`, `gte`, `like`, `in`, `nin`.
+| `<campo>_<op>` o `<campo1>,<campo2>_<op>` | `status_in=active,pending` o `name,surname_eq=pepe` | Filtros; `<op>` debe ser uno de `eq`, `neq`, `lt`, `lte`, `gt`, `gte`, `like`, `in`, `nin`. Los campos separados por coma se unen con `OR`.
 
 > **Importante:** cuando la petición incluye `cursor`, no se pueden añadir ni
 > modificar `limit`, filtros u ordenamientos. `ParseWithSecurity` reconstruye
@@ -36,6 +36,13 @@ paquete debe invocar el backend para completar el flujo.
 `parseFilters` divide el nombre del campo y el operador utilizando el último
 subrayado (`_`). Esto permite filtros como `document_number_like=46`, donde el
 campo `document_number` conserva el sufijo del operador `like`.
+
+### Agrupación por campos (OR)
+
+También se puede enviar una lista de campos separada por comas antes del
+operador, por ejemplo `name,surname_eq=pepe`. En ese caso, el backend traduce
+ese filtro como `(name = 'pepe' OR surname = 'pepe')`. Si hay otros filtros en
+la misma querystring, se combinan con `AND`.
 
 ### Prefijos de tabla o alias
 

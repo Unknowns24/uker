@@ -213,27 +213,13 @@ func parseFilters(values url.Values) (map[string]string, error) {
 			continue
 		}
 
-		idx := strings.LastIndex(key, "_")
-		if idx <= 0 || idx == len(key)-1 {
-			return nil, ErrInvalidFilter
-		}
-
-		field := key[:idx]
-		operator := key[idx+1:]
-		if field == "" || operator == "" {
-			return nil, ErrInvalidFilter
-		}
-		if _, allowed := allowedFilterOperators[operator]; !allowed {
-			return nil, ErrInvalidFilter
-		}
-
-		identifier, err := requireIdent(strings.TrimSpace(field), ErrInvalidFilter)
+		_, _, normalizedKey, err := parseFilterKey(key)
 		if err != nil {
 			return nil, err
 		}
 
 		combined := strings.Join(rawValues, ",")
-		filters[identifier+"_"+operator] = combined
+		filters[normalizedKey] = combined
 	}
 
 	return filters, nil
