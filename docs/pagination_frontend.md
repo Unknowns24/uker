@@ -30,6 +30,11 @@ paquete debe invocar el backend para completar el flujo.
 > modificar `limit`, filtros u ordenamientos. `ParseWithSecurity` reconstruye
 > esos valores desde el cursor y rechazará la petición si detecta
 > inconsistencias.
+>
+> Algunos endpoints pueden además reservar filtros para uso interno del backend
+> mediante `ParseWithSecurityBlockedFilters` (por ejemplo `user_id`). En esos
+> casos, cualquier filtro reservado enviado por frontend o embebido en un cursor
+> anterior invalida la petición.
 
 ### Campos con guiones bajos
 
@@ -109,8 +114,26 @@ if err != nil {
 }
 ```
 
+Si el endpoint necesita imponer filtros propios del backend, cambia la llamada
+por:
+
+```go
+params, err := pagination.ParseWithSecurityBlockedFilters(
+    r.URL.Query(),
+    secret,
+    ttl,
+    []string{"user_id"},
+)
+```
+
+Luego aplica ese scope directamente en el query base, por ejemplo
+`db.Where("user_id = ?", currentUserID)`, en lugar de confiar en
+`params.Filters`.
+
 - `ParseWithSecurity` valida `limit`, `sort`, filtros y, si llega un cursor,
   verifica la firma antes de reconstruir los parámetros originales.
+- `ParseWithSecurityBlockedFilters` agrega una capa adicional para rechazar
+  filtros reservados del backend tanto en la query como dentro del cursor.
 - `Apply` traduce `params.Filters` y `params.Sort` en cláusulas SQL y solicita
   `limit+1` registros para calcular `has_more`.
 - `BuildPageSigned` genera la estructura `pagination.PagingResponse`, truncando

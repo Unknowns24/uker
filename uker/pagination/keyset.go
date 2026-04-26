@@ -57,11 +57,18 @@ type cursorDecoder func(string) (CursorPayload, error)
 // Parse reads the provided query values and generates pagination parameters following the
 // documented cursor pagination contract.
 func Parse(values url.Values) (Params, error) {
-	return parse(values, DecodeCursor)
+	return parse(values, DecodeCursor, nil)
 }
 
 // ParseWithSecurity mirrors Parse but verifies signed cursors using the supplied secret and TTL.
 func ParseWithSecurity(values url.Values, secret []byte, ttl time.Duration) (Params, error) {
+	return ParseWithSecurityBlockedFilters(values, secret, ttl, nil)
+}
+
+// ParseWithSecurityBlockedFilters behaves like ParseWithSecurity but rejects any filters
+// whose field matches one of the blocked fields. The comparison ignores a single table alias
+// prefix so "user_id" also blocks "orders.user_id_eq" and cursor filters with the same field.
+func ParseWithSecurityBlockedFilters(values url.Values, secret []byte, ttl time.Duration, blockedFields []string) (Params, error) {
 	if len(secret) == 0 {
 		return Params{}, ErrInvalidCursor
 	}
@@ -70,13 +77,18 @@ func ParseWithSecurity(values url.Values, secret []byte, ttl time.Duration) (Par
 		return DecodeCursorSigned(raw, secret, ttl)
 	}
 
-	return parse(values, decoder)
+	return parse(values, decoder, blockedFields)
 }
 
-func parse(values url.Values, decoder cursorDecoder) (Params, error) {
+func parse(values url.Values, decoder cursorDecoder, blockedFields []string) (Params, error) {
 	params := Params{
 		Limit:   DefaultLimit,
 		Filters: map[string]string{},
+	}
+
+	blocked, err := normaliseBlockedFields(blockedFields)
+	if err != nil {
+		return Params{}, err
 	}
 
 	cursor := values.Get("cursor")
@@ -118,6 +130,9 @@ func parse(values url.Values, decoder cursorDecoder) (Params, error) {
 		}
 
 		if len(payload.Filters) > 0 {
+			if err := validateBlockedFilters(payload.Filters, blocked); err != nil {
+				return Params{}, err
+			}
 			for key, value := range payload.Filters {
 				params.Filters[key] = value
 			}
@@ -152,6 +167,9 @@ func parse(values url.Values, decoder cursorDecoder) (Params, error) {
 	if err != nil {
 		return Params{}, err
 	}
+	if err := validateBlockedFilters(filters, blocked); err != nil {
+		return Params{}, err
+	}
 	if params.Cursor != nil && len(filters) > 0 {
 		return Params{}, ErrInvalidFilter
 	}
@@ -161,6 +179,55 @@ func parse(values url.Values, decoder cursorDecoder) (Params, error) {
 	}
 
 	return params, nil
+}
+
+func normaliseBlockedFields(blockedFields []string) (map[string]struct{}, error) {
+	if len(blockedFields) == 0 {
+		return nil, nil
+	}
+
+	blocked := make(map[string]struct{}, len(blockedFields))
+	for _, field := range blockedFields {
+		identifier, err := requireIdent(strings.TrimSpace(field), ErrInvalidFilter)
+		if err != nil {
+			return nil, err
+		}
+		blocked[strings.ToLower(stripTableAlias(identifier))] = struct{}{}
+	}
+
+	return blocked, nil
+}
+
+func validateBlockedFilters(filters map[string]string, blocked map[string]struct{}) error {
+	if len(filters) == 0 || len(blocked) == 0 {
+		return nil
+	}
+
+	for key := range filters {
+		field, err := filterField(key)
+		if err != nil {
+			return err
+		}
+		if _, found := blocked[strings.ToLower(stripTableAlias(field))]; found {
+			return ErrInvalidFilter
+		}
+	}
+
+	return nil
+}
+
+func filterField(key string) (string, error) {
+	idx := strings.LastIndex(key, "_")
+	if idx <= 0 || idx == len(key)-1 {
+		return "", ErrInvalidFilter
+	}
+
+	identifier, err := requireIdent(strings.TrimSpace(key[:idx]), ErrInvalidFilter)
+	if err != nil {
+		return "", err
+	}
+
+	return identifier, nil
 }
 
 func parseSort(raw string) ([]SortExpression, error) {

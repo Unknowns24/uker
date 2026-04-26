@@ -259,12 +259,29 @@ func listUsers(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
+Si un endpoint necesita reservar filtros que el backend impondrá por su cuenta
+(por ejemplo, `user_id` para aislar datos del usuario autenticado), usa
+`ParseWithSecurityBlockedFilters`:
+
+```go
+params, err := pagination.ParseWithSecurityBlockedFilters(
+    r.URL.Query(),
+    cursorSecret,
+    time.Hour,
+    []string{"user_id"},
+)
+```
+
+En ese modo, cualquier `user_id_*` presente en la querystring o embebido en el
+cursor firmado se rechaza con `ErrInvalidFilter`.
+
 Notas clave del módulo:
 
 - `Apply` consulta `limit+1` registros para determinar `has_more` sin lecturas adicionales.
 - Para exponer `paging.total`, ejecuta un `Count` con los mismos filtros pero sin
   `cursor` ni `limit`, y pasa ese valor a `BuildPageSigned`.
 - `ParseWithSecurity` y `BuildPageSigned` emiten y verifican cursores firmados con HMAC y TTL configurable.
+- `ParseWithSecurityBlockedFilters` añade una lista de campos reservados para el backend y rechaza esos filtros tanto en query como en cursor.
 - Los identificadores de filtros y orden se validan con regex y whitelist opcional (`pagination.AllowedColumns`).
 - Si una petición incluye `cursor`, los filtros y orden no pueden modificarse en la querystring.
 - Los filtros `*_like` aplican `%valor%` para búsquedas de “contiene”.
@@ -382,6 +399,7 @@ Este es un punto de partida: añade tus repositorios, validaciones extra y middl
 
 - [Documentación en pkg.go.dev](https://pkg.go.dev/github.com/unknowns24/uker)
 - [Releases publicados](https://github.com/unknowns24/uker/releases)
+- [Validaciones con BodyParser](D:\Code\uker\docs\bodyparser_validaciones.md)
 - [Reporta issues o propone mejoras](https://github.com/unknowns24/uker/issues)
 
 Para conocer la versión del módulo en tiempo de ejecución, revisa `uker.Version`.

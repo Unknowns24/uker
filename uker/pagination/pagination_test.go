@@ -288,6 +288,87 @@ func TestParseWithSecurityBlocksFilterOverrides(t *testing.T) {
 	}
 }
 
+func TestParseWithSecurityBlockedFiltersRejectsQueryFilter(t *testing.T) {
+	values := url.Values{}
+	values.Set("user_id_eq", "usr_123")
+
+	if _, err := pagination.ParseWithSecurityBlockedFilters(values, secret, time.Hour, []string{"user_id"}); err != pagination.ErrInvalidFilter {
+		t.Fatalf("expected blocked query filter error, got %v", err)
+	}
+}
+
+func TestParseWithSecurityBlockedFiltersRejectsCursorFilter(t *testing.T) {
+	cursorPayload := pagination.CursorPayload{
+		Version: 1,
+		Sort:    []pagination.SortExpression{{Field: "created_at", Direction: pagination.DirectionDesc}},
+		Filters: map[string]string{"user_id_eq": "usr_123"},
+	}
+
+	encoded, err := pagination.EncodeCursorSigned(cursorPayload, secret)
+	if err != nil {
+		t.Fatalf("encode cursor signed: %v", err)
+	}
+
+	values := url.Values{}
+	values.Set("cursor", encoded)
+
+	if _, err := pagination.ParseWithSecurityBlockedFilters(values, secret, time.Hour, []string{"user_id"}); err != pagination.ErrInvalidFilter {
+		t.Fatalf("expected blocked cursor filter error, got %v", err)
+	}
+}
+
+func TestParseWithSecurityBlockedFiltersAllowsOtherFilters(t *testing.T) {
+	values := url.Values{}
+	values.Set("status_eq", "active")
+
+	params, err := pagination.ParseWithSecurityBlockedFilters(values, secret, time.Hour, []string{"user_id"})
+	if err != nil {
+		t.Fatalf("parse params: %v", err)
+	}
+
+	if got := params.Filters["status_eq"]; got != "active" {
+		t.Fatalf("expected status_eq filter to be preserved, got %q", got)
+	}
+}
+
+func TestParseWithSecurityBlockedFiltersRejectsQualifiedFilter(t *testing.T) {
+	values := url.Values{}
+	values.Set("orders.user_id_eq", "usr_123")
+
+	if _, err := pagination.ParseWithSecurityBlockedFilters(values, secret, time.Hour, []string{"user_id"}); err != pagination.ErrInvalidFilter {
+		t.Fatalf("expected blocked qualified filter error, got %v", err)
+	}
+}
+
+func TestParseWithSecurityBlockedFiltersNilMatchesExistingBehaviour(t *testing.T) {
+	cursorPayload := pagination.CursorPayload{
+		Version: 1,
+		Limit:   15,
+		Sort:    []pagination.SortExpression{{Field: "created_at", Direction: pagination.DirectionDesc}, {Field: "id", Direction: pagination.DirectionDesc}},
+		Filters: map[string]string{"status_in": "scheduled,ongoing"},
+	}
+
+	encoded, err := pagination.EncodeCursorSigned(cursorPayload, secret)
+	if err != nil {
+		t.Fatalf("encode cursor signed: %v", err)
+	}
+
+	values := url.Values{}
+	values.Set("cursor", encoded)
+
+	params, err := pagination.ParseWithSecurityBlockedFilters(values, secret, time.Hour, nil)
+	if err != nil {
+		t.Fatalf("parse params: %v", err)
+	}
+
+	if params.Limit != 15 {
+		t.Fatalf("expected limit from cursor, got %d", params.Limit)
+	}
+	if got := params.Filters["status_in"]; got != "scheduled,ongoing" {
+		t.Fatalf("expected status_in from cursor, got %q", got)
+	}
+}
+
 func TestParseWithSecurityExpiredCursor(t *testing.T) {
 	cursorPayload := pagination.CursorPayload{
 		Version:   1,
@@ -490,7 +571,6 @@ func TestApplyQualifiesDefaultIDSortForJoinedQueries(t *testing.T) {
 		t.Fatalf("expected order by to qualify id column, got %s", sql)
 	}
 }
-
 
 func TestApplyQualifiesDefaultIDSortForModelQueries(t *testing.T) {
 	db := openTestDB(t)
