@@ -177,6 +177,44 @@ func TestParseAcceptsQualifiedIdentifiers(t *testing.T) {
 	}
 }
 
+func TestParseAcceptsGroupedFilters(t *testing.T) {
+	setAllowedColumns(t, nil)
+
+	values := url.Values{}
+	values.Set("name, surname_eq", "pepe")
+	values.Set("created_at_eq", "today")
+
+	params, err := pagination.Parse(values)
+	if err != nil {
+		t.Fatalf("parse params: %v", err)
+	}
+
+	if got := params.Filters["name,surname_eq"]; got != "pepe" {
+		t.Fatalf("expected grouped filter value pepe, got %q", got)
+	}
+	if _, ok := params.Filters["created_at_eq"]; !ok {
+		t.Fatalf("expected created_at_eq filter to be present")
+	}
+}
+
+func TestParseRejectsInvalidGroupedFilters(t *testing.T) {
+	setAllowedColumns(t, nil)
+
+	cases := []string{
+		"name,,surname_eq",
+		",name_eq",
+	}
+
+	for _, key := range cases {
+		values := url.Values{}
+		values.Set(key, "pepe")
+
+		if _, err := pagination.Parse(values); !errors.Is(err, pagination.ErrInvalidFilter) {
+			t.Fatalf("expected invalid filter error for %q, got %v", key, err)
+		}
+	}
+}
+
 func TestParseWithCursor(t *testing.T) {
 	setAllowedColumns(t, nil)
 
@@ -258,12 +296,34 @@ func TestParseInvalidSortOverride(t *testing.T) {
 	}
 }
 
-func TestParseInvalidFilter(t *testing.T) {
+func TestParseIgnoresNonFilterParams(t *testing.T) {
 	values := url.Values{}
 	values.Set("status_between", "one,two")
+	values.Set("business_id", "123")
 
-	if _, err := pagination.Parse(values); err != pagination.ErrInvalidFilter {
-		t.Fatalf("expected invalid filter error, got %v", err)
+	params, err := pagination.Parse(values)
+	if err != nil {
+		t.Fatalf("parse params: %v", err)
+	}
+
+	if len(params.Filters) != 0 {
+		t.Fatalf("expected non-filter params to be ignored, got %d filters", len(params.Filters))
+	}
+}
+
+func TestParseGroupedFiltersHonoursAllowedColumns(t *testing.T) {
+	setAllowedColumns(t, map[string]struct{}{"name": {}, "surname": {}})
+
+	values := url.Values{}
+	values.Set("users.name,users.surname_eq", "pepe")
+
+	if _, err := pagination.Parse(values); err != nil {
+		t.Fatalf("unexpected error when grouped identifiers are allowed: %v", err)
+	}
+
+	values.Set("users.name,users.unknown_eq", "pepe")
+	if _, err := pagination.Parse(values); !errors.Is(err, pagination.ErrInvalidFilter) {
+		t.Fatalf("expected invalid filter due to whitelist in grouped filter, got %v", err)
 	}
 }
 
@@ -480,6 +540,84 @@ func TestApplyFiltersOnlyAddsWhereClauses(t *testing.T) {
 	}
 	if !strings.Contains(sql, "country LIKE ?") {
 		t.Fatalf("expected LIKE filter, got %s", sql)
+	}
+}
+
+func TestApplyFiltersBuildsGroupedOREquivalences(t *testing.T) {
+	db := openTestDB(t)
+
+	filters := map[string]string{
+		"name,surname_eq": "pepe",
+		"created_at_eq":   "today",
+	}
+
+	query, err := pagination.ApplyFilters(db.Table("records"), filters)
+	if err != nil {
+		t.Fatalf("apply filters: %v", err)
+	}
+
+	stmt := query.Find(&[]record{}).Statement
+	sql := stmt.SQL.String()
+
+	if !strings.Contains(sql, "(name = ? OR surname = ?)") {
+		t.Fatalf("expected grouped OR equality filter, got %s", sql)
+	}
+	if !strings.Contains(sql, "created_at = ?") {
+		t.Fatalf("expected additional filter with AND semantics, got %s", sql)
+	}
+}
+
+func TestApplyFiltersBuildsGroupedORLike(t *testing.T) {
+	db := openTestDB(t)
+	filters := map[string]string{"name,surname_like": "pe"}
+
+	query, err := pagination.ApplyFilters(db.Table("records"), filters)
+	if err != nil {
+		t.Fatalf("apply filters: %v", err)
+	}
+
+	stmt := query.Find(&[]record{}).Statement
+	sql := stmt.SQL.String()
+	if !strings.Contains(sql, "(name LIKE ? OR surname LIKE ?)") {
+		t.Fatalf("expected grouped OR LIKE filter, got %s", sql)
+	}
+
+	if len(stmt.Vars) != 2 || stmt.Vars[0] != "%pe%" || stmt.Vars[1] != "%pe%" {
+		t.Fatalf("expected LIKE vars [%%pe%% %%pe%%], got %#v", stmt.Vars)
+	}
+}
+
+func TestApplyFiltersBuildsGroupedORInAndNotIn(t *testing.T) {
+	db := openTestDB(t)
+
+	inFilters := map[string]string{"origin,country_in": "web,app"}
+	inQuery, err := pagination.ApplyFilters(db.Table("records"), inFilters)
+	if err != nil {
+		t.Fatalf("apply IN filters: %v", err)
+	}
+
+	inStmt := inQuery.Find(&[]record{}).Statement
+	inSQL := inStmt.SQL.String()
+	if !strings.Contains(inSQL, "(origin IN") || !strings.Contains(inSQL, "OR country IN") {
+		t.Fatalf("expected grouped OR IN filter, got %s", inSQL)
+	}
+	if len(inStmt.Vars) != 4 {
+		t.Fatalf("expected four expanded IN vars, got %#v", inStmt.Vars)
+	}
+	if inStmt.Vars[0] != "web" || inStmt.Vars[1] != "app" || inStmt.Vars[2] != "web" || inStmt.Vars[3] != "app" {
+		t.Fatalf("expected expanded IN vars [web app web app], got %#v", inStmt.Vars)
+	}
+
+	ninFilters := map[string]string{"origin,country_nin": "web,app"}
+	ninQuery, err := pagination.ApplyFilters(db.Table("records"), ninFilters)
+	if err != nil {
+		t.Fatalf("apply NOT IN filters: %v", err)
+	}
+
+	ninStmt := ninQuery.Find(&[]record{}).Statement
+	ninSQL := ninStmt.SQL.String()
+	if !strings.Contains(ninSQL, "(origin NOT IN") || !strings.Contains(ninSQL, "OR country NOT IN") {
+		t.Fatalf("expected grouped OR NOT IN filter, got %s", ninSQL)
 	}
 }
 
