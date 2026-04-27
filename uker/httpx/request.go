@@ -72,7 +72,7 @@ func BodyParser(r *http.Request, target any, opts ...ParserOption) error {
 		dataFields = payload
 	}
 
-	return validate.RequiredFields(target, dataFields)
+	return validate.ValidateFields(target, dataFields)
 }
 
 // MultiPartFormParser decodes the provided values and returns the received files.
@@ -94,7 +94,7 @@ func MultiPartFormParser(r *http.Request, values map[string]any, files []string,
 			return nil, err
 		}
 
-		if err := validate.RequiredFields(target, dataFields); err != nil {
+		if err := validate.ValidateFields(target, dataFields); err != nil {
 			return nil, fmt.Errorf("missing required parameters in valueInterface: %s", err.Error())
 		}
 	}

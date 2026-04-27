@@ -149,6 +149,40 @@ func TestBodyParserMissingRequired(t *testing.T) {
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 }
 
+type validationTaggedStruct struct {
+	Name string `json:"name" uker:"required,min=3"`
+	Age  int    `json:"age" uker:"required,min=18,max=65"`
+}
+
+func TestBodyParserTagValidation(t *testing.T) {
+	body, err := json.Marshal(validationTaggedStruct{Name: "Al", Age: 20})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(string(body)))
+	req.Header.Set("Content-Type", "application/json")
+
+	var data validationTaggedStruct
+	if err := httpx.BodyParser(req, &data); err == nil {
+		t.Fatalf("expected validation error for min length")
+	}
+}
+
+func TestBodyParserTagValidationIntRange(t *testing.T) {
+	body, err := json.Marshal(validationTaggedStruct{Name: "Alice", Age: 70})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(string(body)))
+	req.Header.Set("Content-Type", "application/json")
+
+	var data validationTaggedStruct
+	if err := httpx.BodyParser(req, &data); err == nil {
+		t.Fatalf("expected validation error for int max")
+	}
+}
 func TestFinalOutput(t *testing.T) {
 	rec := httptest.NewRecorder()
 	httpx.FinalOutput(rec, http.StatusOK, map[string]string{"key1": "value1"})
