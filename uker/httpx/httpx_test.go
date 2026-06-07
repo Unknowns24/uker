@@ -20,6 +20,15 @@ type testStruct struct {
 	Param4 bool
 }
 
+type documentRequest struct {
+	TipoDocumentoID string `json:"tipo_documento_id" uker:"required"`
+	StorageKey      string `json:"storage_key" uker:"required"`
+	Filename        string `json:"filename" uker:"required"`
+	ContentType     string `json:"content_type" uker:"required"`
+	SizeBytes       int64  `json:"size_bytes" uker:"required"`
+	SHA256          string `json:"sha256" uker:"required"`
+}
+
 func TestMultiPartFormParser(t *testing.T) {
 	test := testStruct{Param1: "value1", Param2: "value2"}
 
@@ -121,6 +130,181 @@ func TestBodyParserRootPayload(t *testing.T) {
 	})
 
 	handler.ServeHTTP(httptest.NewRecorder(), req)
+}
+
+func TestBodyParserRootArray(t *testing.T) {
+	documents := []documentRequest{{
+		TipoDocumentoID: "7bf93820-3648-4267-8dff-536ec4ea9375",
+		StorageKey:      "uploads/file.pdf",
+		Filename:        "archivo.pdf",
+		ContentType:     "application/pdf",
+		SizeBytes:       12345,
+		SHA256:          "abc123",
+	}}
+	body, err := json.Marshal(documents)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(string(body)))
+	req.Header.Set("Content-Type", "application/json")
+
+	var data []documentRequest
+	if err := httpx.BodyParser(req, &data); err != nil {
+		t.Fatalf("BodyParser: %v", err)
+	}
+
+	if len(data) != 1 {
+		t.Fatalf("len(data) = %d", len(data))
+	}
+	if data[0].Filename != "archivo.pdf" {
+		t.Fatalf("Filename = %q", data[0].Filename)
+	}
+}
+
+func TestBodyParserRootArrayMissingRequiredIncludesIndex(t *testing.T) {
+	body := `[
+		{
+			"tipo_documento_id": "7bf93820-3648-4267-8dff-536ec4ea9375",
+			"storage_key": "uploads/file.pdf",
+			"filename": "archivo.pdf",
+			"content_type": "application/pdf",
+			"size_bytes": 12345,
+			"sha256": "abc123"
+		},
+		{
+			"tipo_documento_id": "7bf93820-3648-4267-8dff-536ec4ea9375",
+			"storage_key": "uploads/missing.pdf",
+			"content_type": "application/pdf",
+			"size_bytes": 12345,
+			"sha256": "def456"
+		}
+	]`
+
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	var data []documentRequest
+	err := httpx.BodyParser(req, &data)
+	if err == nil {
+		t.Fatalf("expected error for missing required field")
+	}
+	if !strings.Contains(err.Error(), "[1]") {
+		t.Fatalf("expected error to include index, got %q", err.Error())
+	}
+}
+
+func TestParseBodyRootArray(t *testing.T) {
+	documents := []documentRequest{{
+		TipoDocumentoID: "7bf93820-3648-4267-8dff-536ec4ea9375",
+		StorageKey:      "uploads/file.pdf",
+		Filename:        "archivo.pdf",
+		ContentType:     "application/pdf",
+		SizeBytes:       12345,
+		SHA256:          "abc123",
+	}}
+	body, err := json.Marshal(documents)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(string(body)))
+	req.Header.Set("Content-Type", "application/json")
+
+	data, err := httpx.ParseBody[[]documentRequest](req)
+	if err != nil {
+		t.Fatalf("ParseBody: %v", err)
+	}
+
+	if len(data) != 1 {
+		t.Fatalf("len(data) = %d", len(data))
+	}
+	if data[0].StorageKey != "uploads/file.pdf" {
+		t.Fatalf("StorageKey = %q", data[0].StorageKey)
+	}
+}
+
+func TestParseBodyRootObject(t *testing.T) {
+	test := testStruct{Param1: "value1", Param2: "value2", Param3: 42}
+	body, err := json.Marshal(test)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(string(body)))
+	req.Header.Set("Content-Type", "application/json")
+
+	data, err := httpx.ParseBody[testStruct](req)
+	if err != nil {
+		t.Fatalf("ParseBody: %v", err)
+	}
+
+	if data.Param3 != 42 {
+		t.Fatalf("Param3 = %d", data.Param3)
+	}
+}
+
+func TestBodyParserDataArray(t *testing.T) {
+	documents := []documentRequest{{
+		TipoDocumentoID: "7bf93820-3648-4267-8dff-536ec4ea9375",
+		StorageKey:      "uploads/file.pdf",
+		Filename:        "archivo.pdf",
+		ContentType:     "application/pdf",
+		SizeBytes:       12345,
+		SHA256:          "abc123",
+	}}
+	body, err := json.Marshal(map[string]any{"data": documents})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(string(body)))
+	req.Header.Set("Content-Type", "application/json")
+
+	var data []documentRequest
+	if err := httpx.BodyParser(req, &data); err != nil {
+		t.Fatalf("BodyParser: %v", err)
+	}
+
+	if len(data) != 1 {
+		t.Fatalf("len(data) = %d", len(data))
+	}
+}
+
+func TestBodyParserBase64DataArray(t *testing.T) {
+	documents := []documentRequest{{
+		TipoDocumentoID: "7bf93820-3648-4267-8dff-536ec4ea9375",
+		StorageKey:      "uploads/file.pdf",
+		Filename:        "archivo.pdf",
+		ContentType:     "application/pdf",
+		SizeBytes:       12345,
+		SHA256:          "abc123",
+	}}
+	documentsJSON, err := json.Marshal(documents)
+	if err != nil {
+		t.Fatalf("marshal documents: %v", err)
+	}
+
+	encoded := base64.StdEncoding.EncodeToString(documentsJSON)
+	body, err := json.Marshal(map[string]string{"data": encoded})
+	if err != nil {
+		t.Fatalf("marshal body: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(string(body)))
+	req.Header.Set("Content-Type", "application/json")
+
+	var data []documentRequest
+	if err := httpx.BodyParser(req, &data, httpx.WithBase64Data()); err != nil {
+		t.Fatalf("BodyParser: %v", err)
+	}
+
+	if len(data) != 1 {
+		t.Fatalf("len(data) = %d", len(data))
+	}
+	if data[0].SHA256 != "abc123" {
+		t.Fatalf("SHA256 = %q", data[0].SHA256)
+	}
 }
 
 func TestBodyParserMissingRequired(t *testing.T) {

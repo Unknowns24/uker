@@ -41,38 +41,53 @@ func newParserConfig(opts ...ParserOption) parserConfig {
 // BodyParser decodes the request body into the provided structure, validating
 // `uker:"required"` tags are present in the payload.
 func BodyParser(r *http.Request, target any, opts ...ParserOption) error {
-	if reflect.ValueOf(target).Kind() != reflect.Ptr {
-		panic(fmt.Errorf("expected pointer, got %s", reflect.ValueOf(target).Kind()))
+	targetValue := reflect.ValueOf(target)
+	if targetValue.Kind() != reflect.Ptr {
+		panic(fmt.Errorf("expected pointer, got %s", targetValue.Kind()))
 	}
 
 	rawBody, err := io.ReadAll(r.Body)
 	if err != nil {
-		return errors.New("cannot read request body")
+		return fmt.Errorf("cannot read request body: %w", err)
 	}
 
-	payload := map[string]any{}
-	if err := json.Unmarshal(rawBody, &payload); err != nil {
-		return errors.New("error happend on json unmarshal of request body")
+	payload, err := decodeJSONPayload(rawBody)
+	if err != nil {
+		return fmt.Errorf("error unmarshalling request body: %w", err)
 	}
 
 	cfg := newParserConfig(opts...)
 
-	var dataFields map[string]any
+	if payloadObject, ok := payload.(map[string]any); ok {
+		rawData, hasData := payloadObject[requestKeyData]
+		if !hasData || rawData == nil {
+			if err := json.Unmarshal(rawBody, target); err != nil {
+				return fmt.Errorf("error unmarshalling request body into target: %w", err)
+			}
 
-	if rawData, ok := payload[requestKeyData]; ok && rawData != nil {
+			return validate.RequiredFieldsFromPayload(target, payload)
+		}
+
 		decodedFields, err := decodeDataField(rawData, target, cfg.base64Data)
 		if err != nil {
-			return err
+			return fmt.Errorf("error decoding data field: %w", err)
 		}
-		dataFields = decodedFields
-	} else {
-		if err := json.Unmarshal(rawBody, target); err != nil {
-			return errors.New("error happend on json unmarshal of request body")
-		}
-		dataFields = payload
+
+		return validate.RequiredFieldsFromPayload(target, decodedFields)
 	}
 
-	return validate.RequiredFields(target, dataFields)
+	if err := json.Unmarshal(rawBody, target); err != nil {
+		return fmt.Errorf("error unmarshalling request body into target: %w", err)
+	}
+
+	return validate.RequiredFieldsFromPayload(target, payload)
+}
+
+// ParseBody decodes the request body into the requested type.
+func ParseBody[T any](r *http.Request, opts ...ParserOption) (T, error) {
+	var target T
+	err := BodyParser(r, &target, opts...)
+	return target, err
 }
 
 // MultiPartFormParser decodes the provided values and returns the received files.
@@ -94,7 +109,7 @@ func MultiPartFormParser(r *http.Request, values map[string]any, files []string,
 			return nil, err
 		}
 
-		if err := validate.RequiredFields(target, dataFields); err != nil {
+		if err := validate.RequiredFieldsFromPayload(target, dataFields); err != nil {
 			return nil, fmt.Errorf("missing required parameters in valueInterface: %s", err.Error())
 		}
 	}
@@ -144,7 +159,7 @@ func FirstMultiPartFileToBuff(files []*multipart.FileHeader) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeDataField(raw any, target any, base64Data bool) (map[string]any, error) {
+func decodeDataField(raw any, target any, base64Data bool) (any, error) {
 	if raw == nil {
 		return nil, errors.New("missing field 'data' inside of the request")
 	}
@@ -156,7 +171,7 @@ func decodeDataField(raw any, target any, base64Data bool) (map[string]any, erro
 	default:
 		encoded, err := json.Marshal(value)
 		if err != nil {
-			return nil, fmt.Errorf("error while marshalling JSON: %v", err)
+			return nil, fmt.Errorf("error while marshalling JSON: %w", err)
 		}
 		payload = string(encoded)
 	}
@@ -164,18 +179,28 @@ func decodeDataField(raw any, target any, base64Data bool) (map[string]any, erro
 	if base64Data {
 		decoded, err := base64.StdEncoding.DecodeString(payload)
 		if err != nil {
-			return nil, errors.New("malformed base64 on data field")
+			return nil, fmt.Errorf("malformed base64 on data field: %w", err)
 		}
 		payload = string(decoded)
 	}
 
 	if err := json.Unmarshal([]byte(payload), target); err != nil {
-		return nil, fmt.Errorf("error unmarshalling JSON: %v", err)
+		return nil, fmt.Errorf("error unmarshalling JSON into target: %w", err)
 	}
-	dataFields := map[string]any{}
+
+	var dataFields any
 	if err := json.Unmarshal([]byte(payload), &dataFields); err != nil {
-		return nil, fmt.Errorf("error unmarshalling JSON: %v", err)
+		return nil, fmt.Errorf("error unmarshalling JSON payload: %w", err)
 	}
 
 	return dataFields, nil
+}
+
+func decodeJSONPayload(rawBody []byte) (any, error) {
+	var payload any
+	if err := json.Unmarshal(rawBody, &payload); err != nil {
+		return nil, err
+	}
+
+	return payload, nil
 }
