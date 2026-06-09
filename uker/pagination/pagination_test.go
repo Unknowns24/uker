@@ -129,8 +129,11 @@ func TestParseWithoutCursor(t *testing.T) {
 		t.Fatalf("expected limit 25, got %d", params.Limit)
 	}
 
-	if len(params.Sort) != 2 {
-		t.Fatalf("expected ID to be appended, got %d sorts", len(params.Sort))
+	if len(params.Sort) != 1 {
+		t.Fatalf("expected explicit sort to be preserved, got %d sorts", len(params.Sort))
+	}
+	if params.Sort[0].Field != "created_at" || params.Sort[0].Direction != pagination.DirectionDesc {
+		t.Fatalf("expected created_at desc sort, got %#v", params.Sort[0])
 	}
 
 	if _, ok := params.Filters["status_in"]; !ok {
@@ -138,6 +141,45 @@ func TestParseWithoutCursor(t *testing.T) {
 	}
 	if _, ok := params.Filters["origin_eq"]; !ok {
 		t.Fatalf("expected origin_eq filter to be present")
+	}
+}
+
+func TestParseWithSecurityDoesNotAppendDefaultIDWhenSortProvided(t *testing.T) {
+	setAllowedColumns(t, nil)
+
+	values := url.Values{}
+	values.Set("sort", "permiso_id:asc")
+
+	params, err := pagination.ParseWithSecurity(values, secret, time.Hour)
+	if err != nil {
+		t.Fatalf("parse params: %v", err)
+	}
+
+	if len(params.Sort) != 1 {
+		t.Fatalf("expected only explicit sort, got %d sorts", len(params.Sort))
+	}
+	if params.Sort[0].Field != "permiso_id" || params.Sort[0].Direction != pagination.DirectionAsc {
+		t.Fatalf("expected permiso_id asc sort, got %#v", params.Sort[0])
+	}
+
+	cursor, err := pagination.BuildNextCursorSigned(params, map[string]string{"permiso_id": "1"}, secret)
+	if err != nil {
+		t.Fatalf("build next cursor: %v", err)
+	}
+
+	cursorValues := url.Values{}
+	cursorValues.Set("cursor", cursor)
+
+	nextParams, err := pagination.ParseWithSecurity(cursorValues, secret, time.Hour)
+	if err != nil {
+		t.Fatalf("parse cursor params: %v", err)
+	}
+
+	if len(nextParams.Sort) != 1 {
+		t.Fatalf("expected cursor sort to stay explicit only, got %d sorts", len(nextParams.Sort))
+	}
+	if nextParams.Sort[0].Field != "permiso_id" || nextParams.Sort[0].Direction != pagination.DirectionAsc {
+		t.Fatalf("expected cursor permiso_id asc sort, got %#v", nextParams.Sort[0])
 	}
 }
 

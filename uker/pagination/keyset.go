@@ -3,7 +3,6 @@ package pagination
 import (
 	"errors"
 	"net/url"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -161,7 +160,7 @@ func parse(values url.Values, decoder cursorDecoder, blockedFields []string) (Pa
 	if len(params.Sort) == 0 {
 		params.Sort = []SortExpression{{Field: "id", Direction: DirectionDesc}}
 	}
-	ensureIDSort(&params.Sort)
+	ensureUniqueSortFields(&params.Sort)
 
 	filters, err := parseFilters(values)
 	if err != nil {
@@ -295,32 +294,10 @@ func parseFilters(values url.Values) (map[string]string, error) {
 	return filters, nil
 }
 
-func ensureIDSort(sortExpressions *[]SortExpression) {
+func ensureUniqueSortFields(sortExpressions *[]SortExpression) {
 	sortSlice := *sortExpressions
-	hasID := false
-	var tableAlias string
 
-	for _, entry := range sortSlice {
-		if strings.EqualFold(stripTableAlias(entry.Field), "id") {
-			hasID = true
-		}
-
-		if tableAlias == "" {
-			if parts := strings.SplitN(entry.Field, ".", 2); len(parts) == 2 {
-				tableAlias = parts[0]
-			}
-		}
-	}
-
-	if !hasID {
-		idField := "id"
-		if tableAlias != "" {
-			idField = tableAlias + ".id"
-		}
-		sortSlice = append(sortSlice, SortExpression{Field: idField, Direction: DirectionDesc})
-	}
-
-	// Normalise to guarantee deterministic order for callers and to avoid duplicated id
+	// Normalise to guarantee deterministic order for callers and to avoid duplicated
 	// expressions (e.g. when provided by the cursor).
 	unique := make([]SortExpression, 0, len(sortSlice))
 	seen := map[string]struct{}{}
@@ -334,13 +311,4 @@ func ensureIDSort(sortExpressions *[]SortExpression) {
 	}
 
 	*sortExpressions = unique
-	sort.SliceStable(*sortExpressions, func(i, j int) bool {
-		if strings.EqualFold(stripTableAlias((*sortExpressions)[i].Field), "id") {
-			return false
-		}
-		if strings.EqualFold(stripTableAlias((*sortExpressions)[j].Field), "id") {
-			return true
-		}
-		return i < j
-	})
 }

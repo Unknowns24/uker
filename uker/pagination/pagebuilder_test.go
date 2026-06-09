@@ -129,8 +129,9 @@ func TestBuildPage_GeneratesPrevCursorForSubsequentPage(t *testing.T) {
 		t.Fatalf("decode prev cursor: %v", err)
 	}
 
-	if payload.Before["id"] != secondMembers[0].ID {
-		t.Fatalf("expected prev cursor id %q, got %q", secondMembers[0].ID, payload.Before["id"])
+	expectedCreatedAt := secondMembers[0].CreatedAt.UTC().Format(time.RFC3339)
+	if payload.Before["created_at"] != expectedCreatedAt {
+		t.Fatalf("expected prev cursor created_at %q, got %q", expectedCreatedAt, payload.Before["created_at"])
 	}
 }
 
