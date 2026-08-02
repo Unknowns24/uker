@@ -22,7 +22,7 @@ paquete debe invocar el backend para completar el flujo.
 | Parámetro        | Ejemplo                             | Descripción |
 |------------------|-------------------------------------|-------------|
 | `limit`          | `limit=25`                          | Tamaño de página (el paquete impone máximos configurables).
-| `sort`           | `sort=created_at:desc,name:asc`     | Lista separada por comas. Cada entrada usa `campo[:asc\|desc]`. Si `id` no se indica, el paquete lo agrega para desempates.
+| `sort`           | `sort=created_at:desc,id:desc`       | Lista separada por comas. Cada entrada usa `campo[:asc\|desc]`. Desde `v1.2.1`, el paquete no agrega `id`: el backend debe incluir explícitamente un desempate único.
 | `cursor`         | `cursor=eyJ...`                     | Cursor firmado devuelto previamente. Debe reenviarse sin cambios.
 | `<campo>_<op>` o `<campo1>,<campo2>_<op>` | `status_in=active,pending` o `name,surname_eq=pepe` | Filtros; `<op>` debe ser uno de `eq`, `neq`, `lt`, `lte`, `gt`, `gte`, `like`, `in`, `nin`. Los campos separados por coma se unen con `OR`.
 
@@ -91,11 +91,7 @@ if err != nil {
 
 query := db.Model(&YourModel{})
 
-countParams := params
-countParams.Cursor = nil
-countParams.RawCursor = ""
-countParams.Limit = 0
-countQuery, err := pagination.Apply(query, countParams)
+countQuery, err := pagination.ApplyFilters(query, params.Filters)
 if err != nil {
     // responder con error 400 u otro según el caso
 }

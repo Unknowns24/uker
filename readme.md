@@ -211,11 +211,7 @@ func listUsers(w http.ResponseWriter, r *http.Request) {
 
     base := db.Model(&User{})
 
-    countParams := params
-    countParams.Cursor = nil
-    countParams.RawCursor = ""
-    countParams.Limit = 0
-    countQuery, err := pagination.Apply(base, countParams)
+    countQuery, err := pagination.ApplyFilters(base, params.Filters)
     if err != nil {
         httpx.ErrorOutput(w, http.StatusBadRequest, httpx.Response{
             Status: httpx.ResponseStatus{Type: httpx.Error, Code: "invalid_query", Description: err.Error()},
@@ -401,6 +397,8 @@ Este es un punto de partida: añade tus repositorios, validaciones extra y middl
 
 - [Documentación en pkg.go.dev](https://pkg.go.dev/github.com/unknowns24/uker)
 - [Releases publicados](https://github.com/unknowns24/uker/releases)
+- [Paginación en arquitectura hexagonal](docs/pagination_hexagonal.md)
+- [Consumo de paginación desde frontend](docs/pagination_frontend.md)
 - [Validaciones con BodyParser](D:\Code\uker\docs\bodyparser_validaciones.md)
 - [Reporta issues o propone mejoras](https://github.com/unknowns24/uker/issues)
 

@@ -203,30 +203,18 @@ func validateBlockedFilters(filters map[string]string, blocked map[string]struct
 	}
 
 	for key := range filters {
-		field, err := filterField(key)
+		fields, _, _, err := parseFilterKey(key)
 		if err != nil {
 			return err
 		}
-		if _, found := blocked[strings.ToLower(stripTableAlias(field))]; found {
-			return ErrInvalidFilter
+		for _, field := range fields {
+			if _, found := blocked[strings.ToLower(stripTableAlias(field))]; found {
+				return ErrInvalidFilter
+			}
 		}
 	}
 
 	return nil
-}
-
-func filterField(key string) (string, error) {
-	idx := strings.LastIndex(key, "_")
-	if idx <= 0 || idx == len(key)-1 {
-		return "", ErrInvalidFilter
-	}
-
-	identifier, err := requireIdent(strings.TrimSpace(key[:idx]), ErrInvalidFilter)
-	if err != nil {
-		return "", err
-	}
-
-	return identifier, nil
 }
 
 func parseSort(raw string) ([]SortExpression, error) {

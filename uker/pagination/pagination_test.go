@@ -1,6 +1,8 @@
 package pagination_test
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"net/url"
 	"strings"
@@ -108,6 +110,39 @@ func TestDecodeCursorSignedRejectsTampering(t *testing.T) {
 	tampered := encoded[:len(encoded)-2] + "zz"
 	if _, err := pagination.DecodeCursorSigned(tampered, secret, time.Hour); err != pagination.ErrInvalidCursor {
 		t.Fatalf("expected invalid cursor error, got %v", err)
+	}
+}
+
+func TestDecodeCursorSignedRejectsLimitTampering(t *testing.T) {
+	payload := pagination.CursorPayload{
+		Limit: 25,
+		Sort:  []pagination.SortExpression{{Field: "id", Direction: pagination.DirectionDesc}},
+		After: map[string]string{"id": "usr_25"},
+	}
+	encoded, err := pagination.EncodeCursorSigned(payload, secret)
+	if err != nil {
+		t.Fatalf("encode cursor signed: %v", err)
+	}
+
+	raw, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(encoded, "b64!"))
+	if err != nil {
+		t.Fatalf("decode cursor transport: %v", err)
+	}
+
+	var tamperedPayload map[string]any
+	if err := json.Unmarshal(raw, &tamperedPayload); err != nil {
+		t.Fatalf("unmarshal cursor payload: %v", err)
+	}
+	tamperedPayload["limit"] = float64(100)
+
+	raw, err = json.Marshal(tamperedPayload)
+	if err != nil {
+		t.Fatalf("marshal tampered cursor payload: %v", err)
+	}
+	tampered := "b64!" + base64.StdEncoding.EncodeToString(raw)
+
+	if _, err := pagination.DecodeCursorSigned(tampered, secret, time.Hour); !errors.Is(err, pagination.ErrInvalidCursor) {
+		t.Fatalf("expected modified limit to invalidate signature, got %v", err)
 	}
 }
 
@@ -430,6 +465,29 @@ func TestParseWithSecurityBlockedFiltersAllowsOtherFilters(t *testing.T) {
 
 	if got := params.Filters["status_eq"]; got != "active" {
 		t.Fatalf("expected status_eq filter to be preserved, got %q", got)
+	}
+}
+
+func TestParseWithSecurityBlockedFiltersAllowsGroupedOtherFilters(t *testing.T) {
+	values := url.Values{}
+	values.Set("name,surname_like", "pepe")
+
+	params, err := pagination.ParseWithSecurityBlockedFilters(values, secret, time.Hour, []string{"user_id"})
+	if err != nil {
+		t.Fatalf("parse params: %v", err)
+	}
+
+	if got := params.Filters["name,surname_like"]; got != "pepe" {
+		t.Fatalf("expected grouped filter to be preserved, got %q", got)
+	}
+}
+
+func TestParseWithSecurityBlockedFiltersRejectsBlockedFieldInGroup(t *testing.T) {
+	values := url.Values{}
+	values.Set("name,user_id_like", "pepe")
+
+	if _, err := pagination.ParseWithSecurityBlockedFilters(values, secret, time.Hour, []string{"user_id"}); !errors.Is(err, pagination.ErrInvalidFilter) {
+		t.Fatalf("expected grouped blocked filter error, got %v", err)
 	}
 }
 

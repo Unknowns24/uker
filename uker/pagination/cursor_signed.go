@@ -13,6 +13,7 @@ import (
 
 type cursorNoSig struct {
 	Version   int               `json:"v"`
+	Limit     int               `json:"limit,omitempty"`
 	Sort      []SortExpression  `json:"sort,omitempty"`
 	Filters   map[string]string `json:"filters,omitempty"`
 	After     map[string]string `json:"after,omitempty"`
@@ -46,6 +47,7 @@ func EncodeCursorSigned(payload CursorPayload, secret []byte) (string, error) {
 
 	core := cursorNoSig{
 		Version:   payload.Version,
+		Limit:     payload.Limit,
 		Sort:      payload.Sort,
 		Filters:   payload.Filters,
 		After:     payload.After,
@@ -92,6 +94,7 @@ func DecodeCursorSigned(encoded string, secret []byte, ttl time.Duration) (Curso
 
 	core := cursorNoSig{
 		Version:   payload.Version,
+		Limit:     payload.Limit,
 		Sort:      payload.Sort,
 		Filters:   payload.Filters,
 		After:     payload.After,
