@@ -11,6 +11,46 @@ import (
 	"github.com/unknowns24/uker/internal/base64url"
 )
 
+const signingContextNamespace = "github.com/unknowns24/uker/pagination/signing-context/v1"
+
+type signingConfig struct {
+	context string
+}
+
+// SigningOption configures signed cursor generation and verification.
+type SigningOption func(*signingConfig)
+
+// WithSigningContext binds a signed cursor to opaque application-provided context.
+// The exact same context must be supplied when generating and verifying the cursor.
+// An empty context preserves the legacy unscoped signing behaviour.
+func WithSigningContext(context string) SigningOption {
+	return func(cfg *signingConfig) {
+		cfg.context = context
+	}
+}
+
+func newSigningConfig(opts ...SigningOption) signingConfig {
+	cfg := signingConfig{}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&cfg)
+		}
+	}
+	return cfg
+}
+
+func deriveCursorSigningKey(secret []byte, context string) []byte {
+	if context == "" {
+		return secret
+	}
+
+	mac := hmac.New(sha256.New, secret)
+	_, _ = mac.Write([]byte(signingContextNamespace))
+	_, _ = mac.Write([]byte{0})
+	_, _ = mac.Write([]byte(context))
+	return mac.Sum(nil)
+}
+
 type cursorNoSig struct {
 	Version   int               `json:"v"`
 	Limit     int               `json:"limit,omitempty"`
@@ -34,10 +74,13 @@ func signCursorPayload(payload cursorNoSig, secret []byte) (string, error) {
 }
 
 // EncodeCursorSigned serialises the cursor payload and appends an HMAC signature using the provided secret.
-func EncodeCursorSigned(payload CursorPayload, secret []byte) (string, error) {
+// Pass WithSigningContext to bind the signature to external application context.
+func EncodeCursorSigned(payload CursorPayload, secret []byte, opts ...SigningOption) (string, error) {
 	if len(secret) == 0 {
 		return "", errors.New("pagination: missing cursor signing secret")
 	}
+	cfg := newSigningConfig(opts...)
+	effectiveKey := deriveCursorSigningKey(secret, cfg.context)
 	if payload.Version == 0 {
 		payload.Version = 1
 	}
@@ -55,7 +98,7 @@ func EncodeCursorSigned(payload CursorPayload, secret []byte) (string, error) {
 		Timestamp: payload.Timestamp,
 	}
 
-	signature, err := signCursorPayload(core, secret)
+	signature, err := signCursorPayload(core, effectiveKey)
 	if err != nil {
 		return "", err
 	}
@@ -70,13 +113,16 @@ func EncodeCursorSigned(payload CursorPayload, secret []byte) (string, error) {
 }
 
 // DecodeCursorSigned verifies the cursor signature and TTL before returning the payload.
-func DecodeCursorSigned(encoded string, secret []byte, ttl time.Duration) (CursorPayload, error) {
+// A scoped cursor requires the exact WithSigningContext value used when it was encoded.
+func DecodeCursorSigned(encoded string, secret []byte, ttl time.Duration, opts ...SigningOption) (CursorPayload, error) {
 	if encoded == "" {
 		return CursorPayload{}, ErrInvalidCursor
 	}
 	if len(secret) == 0 {
 		return CursorPayload{}, ErrInvalidCursor
 	}
+	cfg := newSigningConfig(opts...)
+	effectiveKey := deriveCursorSigningKey(secret, cfg.context)
 
 	decoded, err := base64url.Decode(encoded)
 	if err != nil {
@@ -102,7 +148,7 @@ func DecodeCursorSigned(encoded string, secret []byte, ttl time.Duration) (Curso
 		Timestamp: payload.Timestamp,
 	}
 
-	expected, err := signCursorPayload(core, secret)
+	expected, err := signCursorPayload(core, effectiveKey)
 	if err != nil {
 		return CursorPayload{}, err
 	}

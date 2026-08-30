@@ -89,12 +89,13 @@ func BuildNextCursor(params Params, values map[string]string) (string, error) {
 }
 
 // BuildNextCursorSigned mirrors BuildNextCursor but signs the payload before returning it.
-func BuildNextCursorSigned(params Params, values map[string]string, secret []byte) (string, error) {
+// Pass WithSigningContext to bind the cursor to external application context.
+func BuildNextCursorSigned(params Params, values map[string]string, secret []byte, opts ...SigningOption) (string, error) {
 	payload, err := buildNextCursorPayload(params, values)
 	if err != nil || payload == nil {
 		return "", err
 	}
-	return EncodeCursorSigned(*payload, secret)
+	return EncodeCursorSigned(*payload, secret, opts...)
 }
 
 // BuildPrevCursor constructs a cursor pointing to the previous page using the provided
@@ -109,12 +110,13 @@ func BuildPrevCursor(params Params, values map[string]string) (string, error) {
 }
 
 // BuildPrevCursorSigned mirrors BuildPrevCursor but signs the payload using the provided secret.
-func BuildPrevCursorSigned(params Params, values map[string]string, secret []byte) (string, error) {
+// Pass WithSigningContext to bind the cursor to external application context.
+func BuildPrevCursorSigned(params Params, values map[string]string, secret []byte, opts ...SigningOption) (string, error) {
 	payload, err := buildPrevCursorPayload(params, values)
 	if err != nil || payload == nil {
 		return "", err
 	}
-	return EncodeCursorSigned(*payload, secret)
+	return EncodeCursorSigned(*payload, secret, opts...)
 }
 
 func buildNextCursorPayload(params Params, values map[string]string) (*CursorPayload, error) {

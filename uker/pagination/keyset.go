@@ -60,20 +60,22 @@ func Parse(values url.Values) (Params, error) {
 }
 
 // ParseWithSecurity mirrors Parse but verifies signed cursors using the supplied secret and TTL.
-func ParseWithSecurity(values url.Values, secret []byte, ttl time.Duration) (Params, error) {
-	return ParseWithSecurityBlockedFilters(values, secret, ttl, nil)
+// Pass WithSigningContext to require cursors bound to external application context.
+func ParseWithSecurity(values url.Values, secret []byte, ttl time.Duration, opts ...SigningOption) (Params, error) {
+	return ParseWithSecurityBlockedFilters(values, secret, ttl, nil, opts...)
 }
 
 // ParseWithSecurityBlockedFilters behaves like ParseWithSecurity but rejects any filters
 // whose field matches one of the blocked fields. The comparison ignores a single table alias
 // prefix so "user_id" also blocks "orders.user_id_eq" and cursor filters with the same field.
-func ParseWithSecurityBlockedFilters(values url.Values, secret []byte, ttl time.Duration, blockedFields []string) (Params, error) {
+// It accepts the same signing options as ParseWithSecurity.
+func ParseWithSecurityBlockedFilters(values url.Values, secret []byte, ttl time.Duration, blockedFields []string, opts ...SigningOption) (Params, error) {
 	if len(secret) == 0 {
 		return Params{}, ErrInvalidCursor
 	}
 
 	decoder := func(raw string) (CursorPayload, error) {
-		return DecodeCursorSigned(raw, secret, ttl)
+		return DecodeCursorSigned(raw, secret, ttl, opts...)
 	}
 
 	return parse(values, decoder, blockedFields)

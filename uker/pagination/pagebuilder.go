@@ -35,13 +35,14 @@ func BuildPage[T any](params Params, results []T, limit int, total int64, extrac
 }
 
 // BuildPageSigned behaves like BuildPage but signs generated cursors with the provided secret.
-func BuildPageSigned[T any](params Params, results []T, limit int, total int64, extract CursorExtractor[T], secret []byte) (PagingResponse[T], error) {
+// Pass the same WithSigningContext option used when parsing the pagination request.
+func BuildPageSigned[T any](params Params, results []T, limit int, total int64, extract CursorExtractor[T], secret []byte, opts ...SigningOption) (PagingResponse[T], error) {
 	if len(secret) == 0 {
 		return PagingResponse[T]{}, errors.New("pagination: missing cursor signing secret")
 	}
 
 	encode := func(payload CursorPayload) (string, error) {
-		return EncodeCursorSigned(payload, secret)
+		return EncodeCursorSigned(payload, secret, opts...)
 	}
 	return buildPageWithEncoders(params, results, limit, total, extract, encode, encode)
 }

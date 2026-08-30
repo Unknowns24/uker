@@ -175,6 +175,78 @@ params, err := pagination.ParseWithSecurityBlockedFilters(
 El scope real se agrega a la consulta base con valores obtenidos de la sesión,
 no desde `params.Filters`.
 
+### Firma de cursor ligada a contexto (scoped cursor signing)
+
+Para un recurso anidado, liga el cursor al identificador externo sin convertir
+ese identificador en filtro ni agregarlo al payload. Por ejemplo, en
+`GET /users/{id}/orders`:
+
+```go
+func (c paginationConfig) parseUserOrders(
+    r *http.Request,
+    userID string,
+) (pagination.Params, error) {
+    return pagination.ParseWithSecurity(
+        r.URL.Query(),
+        c.cursorSecret,
+        c.cursorTTL,
+        pagination.WithSigningContext("user-orders:" + userID),
+    )
+}
+```
+
+Conserva el mismo string de contexto en el adaptador REST y úsalo también al
+generar la respuesta:
+
+```go
+signing := pagination.WithSigningContext("user-orders:" + userID)
+
+transportParams, err := pagination.ParseWithSecurity(
+    r.URL.Query(),
+    h.pagination.cursorSecret,
+    h.pagination.cursorTTL,
+    signing,
+)
+if err != nil {
+    // responder 400
+}
+
+result, err := h.uc.GetUserOrders(
+    r.Context(),
+    userID, // el caso de uso y el repositorio aplican el scope obligatorio
+    toCorePageRequest(transportParams),
+)
+if err != nil {
+    // mapear el error
+}
+
+page, err := pagination.BuildPageSigned(
+    transportParams,
+    result.Items,
+    transportParams.Limit,
+    result.Total,
+    nil,
+    h.pagination.cursorSecret,
+    signing,
+)
+```
+
+El contexto es opaco para Uker y debe tratarse como dato de aplicación no
+secreto. La implementación deriva una clave efectiva mediante HMAC-SHA256 a
+partir del secreto maestro, un namespace versionado de Uker y el contexto. El
+contexto no aparece en `pagination.Params`, `CursorPayload`, filtros ni SQL.
+Un contexto vacío usa la firma histórica sin derivación.
+
+La verificación scoped usa únicamente la clave derivada: no hace fallback a la
+firma sin contexto. Por eso un cursor emitido para otro usuario, otro namespace de
+recurso o sin contexto devuelve `ErrInvalidCursor`.
+
+La firma ligada a contexto **no reemplaza autorización ni scope obligatorio de
+base de datos**. El adaptador debe obtener `userID` de una fuente confiable,
+autorizar al actor y pasarlo al core; el repositorio debe aplicarlo siempre en
+la consulta base tanto de datos como de `COUNT`. `Apply` y `ApplyFilters` siguen
+sin recibir contexto de firma.
+
 ### Mapear hacia el core
 
 El mapper REST traduce `pagination.Params` a `paging.PageRequest`. Debe copiar:
@@ -381,6 +453,11 @@ Los cursores nuevos firman con HMAC-SHA256 `v`, `limit`, `sort`, `filters`,
 `after`, `before` y `ts`. Modificar cualquiera de esos valores invalida el
 cursor. La firma no cifra el contenido: no incluyas secretos ni datos
 personales en filtros o límites keyset.
+
+Cuando se usa `WithSigningContext`, Uker firma con una clave derivada del
+secreto maestro, el namespace versionado
+`github.com/unknowns24/uker/pagination/signing-context/v1` y el contexto opaco.
+Parsing y generación deben recibir exactamente el mismo contexto.
 
 El TTL se aplica solo cuando es mayor que cero. Un TTL igual a cero significa
 que el cursor no expira. Usa un secreto largo, aleatorio, estable entre réplicas

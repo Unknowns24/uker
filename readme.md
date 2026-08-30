@@ -271,12 +271,68 @@ params, err := pagination.ParseWithSecurityBlockedFilters(
 En ese modo, cualquier `user_id_*` presente en la querystring o embebido en el
 cursor firmado se rechaza con `ErrInvalidFilter`.
 
+#### Firma de cursores ligada a contexto
+
+Un endpoint de recurso anidado puede ligar la validez del cursor al recurso
+externo con `WithSigningContext`. Usa exactamente el mismo contexto al parsear
+la petición y al construir la página:
+
+```go
+func listUserOrders(w http.ResponseWriter, r *http.Request) {
+    userID := r.PathValue("id")
+    signing := pagination.WithSigningContext("user-orders:" + userID)
+
+    params, err := pagination.ParseWithSecurity(
+        r.URL.Query(),
+        cursorSecret,
+        time.Hour,
+        signing,
+    )
+    if err != nil {
+        // responder 400
+        return
+    }
+
+    base := db.Model(&Order{}).Where("user_id = ?", userID)
+    // Aplicar params, ejecutar la consulta y calcular total usando el mismo base scope.
+
+    page, err := pagination.BuildPageSigned(
+        params,
+        rows,
+        params.Limit,
+        total,
+        nil,
+        cursorSecret,
+        signing,
+    )
+    if err != nil {
+        // responder 500
+        return
+    }
+
+    httpx.FinalOutput(w, http.StatusOK, page)
+}
+```
+
+El contexto es un valor opaco provisto por la aplicación. Uker deriva una clave
+de firma separada a partir del secreto maestro, pero no guarda el contexto en
+`pagination.Params`, en los filtros ni en el payload del cursor. Un cursor de
+otro usuario o de otro namespace se rechaza como `ErrInvalidCursor`; no se intenta
+validarlo nuevamente como cursor sin contexto. Un contexto vacío conserva el
+comportamiento histórico.
+
+Esta ligadura criptográfica **no reemplaza autorización ni scope de base de
+datos**. El handler debe obtener `userID` desde una fuente confiable, autorizar
+el acceso y aplicar siempre `Where("user_id = ?", userID)` (o su equivalente).
+`Apply` y `ApplyFilters` no reciben ni aplican el contexto de firma.
+
 Notas clave del módulo:
 
 - `Apply` consulta `limit+1` registros para determinar `has_more` sin lecturas adicionales.
 - Para exponer `paging.total`, ejecuta un `Count` con los mismos filtros pero sin
   `cursor` ni `limit`, y pasa ese valor a `BuildPageSigned`.
 - `ParseWithSecurity` y `BuildPageSigned` emiten y verifican cursores firmados con HMAC y TTL configurable.
+- `WithSigningContext` liga opcionalmente la firma a un contexto externo sin agregarlo al cursor ni a los filtros.
 - `ParseWithSecurityBlockedFilters` añade una lista de campos reservados para el backend y rechaza esos filtros tanto en query como en cursor.
 - Los identificadores de filtros y orden se validan con regex y whitelist opcional (`pagination.AllowedColumns`).
 - Si una petición incluye `cursor`, los filtros y orden no pueden modificarse en la querystring.
