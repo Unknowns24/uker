@@ -52,13 +52,14 @@ func deriveCursorSigningKey(secret []byte, context string) []byte {
 }
 
 type cursorNoSig struct {
-	Version   int               `json:"v"`
-	Limit     int               `json:"limit,omitempty"`
-	Sort      []SortExpression  `json:"sort,omitempty"`
-	Filters   map[string]string `json:"filters,omitempty"`
-	After     map[string]string `json:"after,omitempty"`
-	Before    map[string]string `json:"before,omitempty"`
-	Timestamp int64             `json:"ts,omitempty"`
+	Version       int               `json:"v"`
+	Limit         int               `json:"limit,omitempty"`
+	Sort          []SortExpression  `json:"sort,omitempty"`
+	Filters       map[string]string `json:"filters,omitempty"`
+	CustomFilters map[string]string `json:"custom_filters,omitempty"`
+	After         map[string]string `json:"after,omitempty"`
+	Before        map[string]string `json:"before,omitempty"`
+	Timestamp     int64             `json:"ts,omitempty"`
 }
 
 func signCursorPayload(payload cursorNoSig, secret []byte) (string, error) {
@@ -89,13 +90,14 @@ func EncodeCursorSigned(payload CursorPayload, secret []byte, opts ...SigningOpt
 	}
 
 	core := cursorNoSig{
-		Version:   payload.Version,
-		Limit:     payload.Limit,
-		Sort:      payload.Sort,
-		Filters:   payload.Filters,
-		After:     payload.After,
-		Before:    payload.Before,
-		Timestamp: payload.Timestamp,
+		Version:       payload.Version,
+		Limit:         payload.Limit,
+		Sort:          payload.Sort,
+		Filters:       payload.Filters,
+		CustomFilters: payload.CustomFilters,
+		After:         payload.After,
+		Before:        payload.Before,
+		Timestamp:     payload.Timestamp,
 	}
 
 	signature, err := signCursorPayload(core, effectiveKey)
@@ -139,13 +141,14 @@ func DecodeCursorSigned(encoded string, secret []byte, ttl time.Duration, opts .
 	}
 
 	core := cursorNoSig{
-		Version:   payload.Version,
-		Limit:     payload.Limit,
-		Sort:      payload.Sort,
-		Filters:   payload.Filters,
-		After:     payload.After,
-		Before:    payload.Before,
-		Timestamp: payload.Timestamp,
+		Version:       payload.Version,
+		Limit:         payload.Limit,
+		Sort:          payload.Sort,
+		Filters:       payload.Filters,
+		CustomFilters: payload.CustomFilters,
+		After:         payload.After,
+		Before:        payload.Before,
+		Timestamp:     payload.Timestamp,
 	}
 
 	expected, err := signCursorPayload(core, effectiveKey)

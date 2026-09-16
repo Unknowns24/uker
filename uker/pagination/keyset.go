@@ -44,11 +44,24 @@ var allowedFilterOperators = map[string]struct{}{
 
 // Params encapsulates the parsed pagination request.
 type Params struct {
-	Limit     int
-	Sort      []SortExpression
-	Filters   map[string]string
-	Cursor    *CursorPayload
-	RawCursor string
+	Limit         int
+	Sort          []SortExpression
+	Filters       map[string]string
+	CustomFilters map[string]string
+	Cursor        *CursorPayload
+	RawCursor     string
+}
+
+// SetCustomFilters stores application-defined filters that should travel with
+// generated cursors. Unlike Filters, custom filters are not read from the
+// query string and are never applied by Apply or ApplyFilters. They are signed
+// along with the rest of the cursor and are available again after parsing a
+// subsequent cursor through Params.CustomFilters.
+//
+// The input map is copied so callers can safely reuse or modify it after this
+// call.
+func (p *Params) SetCustomFilters(filters map[string]string) {
+	p.CustomFilters = cloneFilters(filters)
 }
 
 type cursorDecoder func(string) (CursorPayload, error)
@@ -83,8 +96,9 @@ func ParseWithSecurityBlockedFilters(values url.Values, secret []byte, ttl time.
 
 func parse(values url.Values, decoder cursorDecoder, blockedFields []string) (Params, error) {
 	params := Params{
-		Limit:   DefaultLimit,
-		Filters: map[string]string{},
+		Limit:         DefaultLimit,
+		Filters:       map[string]string{},
+		CustomFilters: map[string]string{},
 	}
 
 	blocked, err := normaliseBlockedFields(blockedFields)
@@ -136,6 +150,12 @@ func parse(values url.Values, decoder cursorDecoder, blockedFields []string) (Pa
 			}
 			for key, value := range payload.Filters {
 				params.Filters[key] = value
+			}
+		}
+
+		if len(payload.CustomFilters) > 0 {
+			for key, value := range payload.CustomFilters {
+				params.CustomFilters[key] = value
 			}
 		}
 

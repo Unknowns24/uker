@@ -326,6 +326,38 @@ datos**. El handler debe obtener `userID` desde una fuente confiable, autorizar
 el acceso y aplicar siempre `Where("user_id = ?", userID)` (o su equivalente).
 `Apply` y `ApplyFilters` no reciben ni aplican el contexto de firma.
 
+#### Filtros propios persistidos
+
+Cuando un endpoint necesita que datos propios viajen entre páginas, pero quiere
+aplicarlos por su cuenta, puede almacenarlos en `CustomFilters`. No se aceptan
+desde la querystring y Uker no los pasa a `Apply` ni a `ApplyFilters`; sí se
+incluyen en el cursor generado, su firma HMAC y el resultado de un parseo
+posterior.
+
+```go
+params, err := pagination.ParseWithSecurity(r.URL.Query(), cursorSecret, time.Hour)
+if err != nil {
+    // responder 400
+    return
+}
+
+if params.Cursor == nil { // solo en la primera página
+    params.SetCustomFilters(map[string]string{
+        "tenant_id": authenticatedTenantID,
+        "visibility": "private",
+    })
+}
+
+// En la primera página o al recuperar un cursor firmado:
+tenantID := params.CustomFilters["tenant_id"]
+base := db.Model(&Order{}).Where("tenant_id = ?", tenantID)
+// Aplicar params y construir la página normalmente.
+```
+
+El cursor está firmado, no cifrado: estos valores no se pueden modificar sin
+invalidar el cursor, pero siguen siendo visibles para quien lo posea. El
+endpoint debe continuar validando y aplicando sus propios scopes y permisos.
+
 Notas clave del módulo:
 
 - `Apply` consulta `limit+1` registros para determinar `has_more` sin lecturas adicionales.
@@ -333,6 +365,7 @@ Notas clave del módulo:
   `cursor` ni `limit`, y pasa ese valor a `BuildPageSigned`.
 - `ParseWithSecurity` y `BuildPageSigned` emiten y verifican cursores firmados con HMAC y TTL configurable.
 - `WithSigningContext` liga opcionalmente la firma a un contexto externo sin agregarlo al cursor ni a los filtros.
+- `Params.CustomFilters` persiste filtros opacos definidos por la aplicación y firmados en el cursor, sin aplicarlos automáticamente.
 - `ParseWithSecurityBlockedFilters` añade una lista de campos reservados para el backend y rechaza esos filtros tanto en query como en cursor.
 - Los identificadores de filtros y orden se validan con regex y whitelist opcional (`pagination.AllowedColumns`).
 - Si una petición incluye `cursor`, los filtros y orden no pueden modificarse en la querystring.

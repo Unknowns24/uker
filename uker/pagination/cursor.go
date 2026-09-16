@@ -66,14 +66,17 @@ func (s *SortExpression) UnmarshalJSON(data []byte) error {
 // CursorPayload matches the documented cursor schema. It remains transport agnostic and can
 // be encoded using EncodeCursor / DecodeCursor.
 type CursorPayload struct {
-	Version   int               `json:"v"`
-	Limit     int               `json:"limit,omitempty"`
-	Sort      []SortExpression  `json:"sort,omitempty"`
-	Filters   map[string]string `json:"filters,omitempty"`
-	After     map[string]string `json:"after,omitempty"`
-	Before    map[string]string `json:"before,omitempty"`
-	Timestamp int64             `json:"ts,omitempty"`
-	Signature string            `json:"sig,omitempty"`
+	Version int               `json:"v"`
+	Limit   int               `json:"limit,omitempty"`
+	Sort    []SortExpression  `json:"sort,omitempty"`
+	Filters map[string]string `json:"filters,omitempty"`
+	// CustomFilters holds application-defined, opaque filters. They are carried
+	// and signed by a cursor but are never interpreted or applied by Uker.
+	CustomFilters map[string]string `json:"custom_filters,omitempty"`
+	After         map[string]string `json:"after,omitempty"`
+	Before        map[string]string `json:"before,omitempty"`
+	Timestamp     int64             `json:"ts,omitempty"`
+	Signature     string            `json:"sig,omitempty"`
 }
 
 // BuildNextCursor constructs a cursor that points to the next page using the provided
@@ -125,10 +128,11 @@ func buildNextCursorPayload(params Params, values map[string]string) (*CursorPay
 	}
 
 	payload := CursorPayload{
-		Limit:   params.Limit,
-		Sort:    cloneSortExpressions(params.Sort),
-		Filters: cloneFilters(params.Filters),
-		After:   cloneCursorValues(values),
+		Limit:         params.Limit,
+		Sort:          cloneSortExpressions(params.Sort),
+		Filters:       cloneFilters(params.Filters),
+		CustomFilters: cloneFilters(params.CustomFilters),
+		After:         cloneCursorValues(values),
 	}
 
 	return &payload, nil
@@ -140,10 +144,11 @@ func buildPrevCursorPayload(params Params, values map[string]string) (*CursorPay
 	}
 
 	payload := CursorPayload{
-		Limit:   params.Limit,
-		Sort:    cloneSortExpressions(params.Sort),
-		Filters: cloneFilters(params.Filters),
-		Before:  cloneCursorValues(values),
+		Limit:         params.Limit,
+		Sort:          cloneSortExpressions(params.Sort),
+		Filters:       cloneFilters(params.Filters),
+		CustomFilters: cloneFilters(params.CustomFilters),
+		Before:        cloneCursorValues(values),
 	}
 
 	return &payload, nil

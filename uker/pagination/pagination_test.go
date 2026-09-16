@@ -100,6 +100,81 @@ func TestEncodeDecodeCursorSigned(t *testing.T) {
 	}
 }
 
+func TestCustomFiltersAreSignedRestoredAndNotApplied(t *testing.T) {
+	params, err := pagination.ParseWithSecurity(url.Values{
+		"limit": []string{"10"},
+		"sort":  []string{"id:asc"},
+	}, secret, time.Hour)
+	if err != nil {
+		t.Fatalf("parse first page: %v", err)
+	}
+
+	provided := map[string]string{"tenant_id": "tenant-123", "visibility": "private"}
+	params.SetCustomFilters(provided)
+	provided["tenant_id"] = "changed-after-setting"
+
+	cursor, err := pagination.BuildNextCursorSigned(params, map[string]string{"id": "item-10"}, secret)
+	if err != nil {
+		t.Fatalf("build signed cursor: %v", err)
+	}
+
+	payload, err := pagination.DecodeCursorSigned(cursor, secret, time.Hour)
+	if err != nil {
+		t.Fatalf("decode signed cursor: %v", err)
+	}
+	if got := payload.CustomFilters["tenant_id"]; got != "tenant-123" {
+		t.Fatalf("expected signed custom tenant filter, got %q", got)
+	}
+
+	nextParams, err := pagination.ParseWithSecurity(url.Values{"cursor": []string{cursor}}, secret, time.Hour)
+	if err != nil {
+		t.Fatalf("parse next page: %v", err)
+	}
+	if got := nextParams.CustomFilters["visibility"]; got != "private" {
+		t.Fatalf("expected restored custom visibility filter, got %q", got)
+	}
+	if len(nextParams.Filters) != 0 {
+		t.Fatalf("custom filters must not become Uker filters, got %#v", nextParams.Filters)
+	}
+
+	query, err := pagination.Apply(openTestDB(t).Table("records"), nextParams)
+	if err != nil {
+		t.Fatalf("apply pagination: %v", err)
+	}
+	if sql := query.Statement.SQL.String(); strings.Contains(sql, "tenant_id") || strings.Contains(sql, "visibility") {
+		t.Fatalf("custom filters must not be applied automatically, got %s", sql)
+	}
+}
+
+func TestDecodeCursorSignedRejectsCustomFilterTampering(t *testing.T) {
+	encoded, err := pagination.EncodeCursorSigned(pagination.CursorPayload{
+		Limit:         25,
+		CustomFilters: map[string]string{"tenant_id": "tenant-123"},
+		Timestamp:     time.Now().Unix(),
+	}, secret)
+	if err != nil {
+		t.Fatalf("encode cursor signed: %v", err)
+	}
+
+	raw, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(encoded, "b64!"))
+	if err != nil {
+		t.Fatalf("decode cursor transport: %v", err)
+	}
+	var tampered map[string]any
+	if err := json.Unmarshal(raw, &tampered); err != nil {
+		t.Fatalf("unmarshal cursor: %v", err)
+	}
+	tampered["custom_filters"] = map[string]string{"tenant_id": "tenant-999"}
+	raw, err = json.Marshal(tampered)
+	if err != nil {
+		t.Fatalf("marshal tampered cursor: %v", err)
+	}
+
+	if _, err := pagination.DecodeCursorSigned("b64!"+base64.StdEncoding.EncodeToString(raw), secret, time.Hour); !errors.Is(err, pagination.ErrInvalidCursor) {
+		t.Fatalf("expected custom filter tampering to invalidate cursor, got %v", err)
+	}
+}
+
 func TestDecodeCursorSignedRejectsTampering(t *testing.T) {
 	payload := pagination.CursorPayload{Version: 1}
 	encoded, err := pagination.EncodeCursorSigned(payload, secret)
